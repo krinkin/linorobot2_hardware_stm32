@@ -81,7 +81,9 @@ Compile-time HW-абстракция репозитория (`USE_*`-макро�
   `make print_cflags` и прокидывает их в colcon → нет VFP-стены Маршрута A.
 - Стабильный контракт транспорта: `rmw_uros_set_custom_transport(true, &huartX, open, close, write, read)`.
 - `colcon.meta` уже задаёт нужные STM32-ключи: `RMW_UXRCE_MAX_NODES=1`, `MAX_PUBLISHERS=10`,
-  `MAX_SUBSCRIPTIONS=5`, `RMW_UXRCE_TRANSPORT=custom`, `RCUTILS_NO_64_ATOMIC=ON`.
+  `MAX_SUBSCRIPTIONS=5`, `RMW_UXRCE_TRANSPORT=custom`, `RCUTILS_NO_64_ATOMIC=ON` — но он покрывает
+  **только `rcutils`**; `rcl` (time/timer/client) использует 64-бит атомики безусловно, поэтому на
+  Cortex-M дополнительно нужен **свой `__atomic_*_8`-шим** (эмпирически подтверждено — см. Plan 2 Task 5a).
 - Цена: предполагается **FreeRTOS** (все примеры и транспортные `.c` тянут `cmsis_os.h`) и **отдельная CI**
   с Docker-сборкой libmicroros (PlatformIO-шный `parse_platformio.py` её не видит).
 
@@ -232,7 +234,7 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 ## 8. Фазы (milestones)
 
 - **Ф0 — скелет:** CubeMX-проект F446RE компилируется, `libmicroros.a` линкуется (**ABI-smoke** —
-  снимает риск VFP).
+  **ABI-smoke = ДВА гейта**: VFP **и** 64-бит атомики/POSIX. Эмпирически: VFP снят (все 2014 членов hard-float); атомики требуют `__atomic_*_8`-шима + `usleep` (Plan 2 Task 5a)).
 - **Ф1 — host-тесты:** `kinematics/pid/odometry`-интегратор зелёные на ПК.
 - **Ф2 — Renode boot:** FreeRTOS стартует, `rclc_support_init` без HardFault (стек 24–32 КБ).
 - **Ф3 — Renode транспорт:** micro-ROS-сессия к агенту, round-trip.
@@ -248,7 +250,7 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 
 1. **Renode `.repl` авторинг** для F446RE — верхний эмуляционный риск. ↦ взять готовый прецедент `.repl`
    F446RE (prdktntwcklr/renode-example), наращивать периферию инкрементально.
-2. **Float-ABI/FPU** — снят Маршрутом B (Docker `make print_cflags`); проверяется ABI-smoke в Ф0.
+2. **Float-ABI/FPU** — снят Маршрутом B (Docker `make print_cflags`); проверяется ABI-smoke в Ф0. Эмпирически: VFP снят (2014/2014 hard-float). **НО** на Cortex-M остаётся реальный блокер: `rcl` тянет `__atomic_*_8`, которых нет в arm-none-eabi (baremetal); `RCUTILS_NO_64_ATOMIC=ON` покрывает только `rcutils`. ↦ PRIMASK `__atomic_*_8`-шим + `usleep` (Plan 2 Task 5a; micro_ros_stm32cubemx_utils#112).
 3. **FreeRTOS стек / HardFault на `rclc_support_init`** (sample-стек 12 КБ мал). ↦ 24–32 КБ, high-water-mark
    + статический анализ; аккуратно с custom allocator (может конфликтовать со стеком).
 4. **Нет модели MPU в Renode** — кастомный I2C-slave (WHO_AM_I + регистры) или FakeIMU до железа.

@@ -6,7 +6,7 @@
 
 **Goal:** Stand up a real-but-minimal NUCLEO-F446RE firmware (CubeMX + FreeRTOS) that **links `libmicroros.a` cleanly** — the ABI/atomics smoke test that de-risks the entire native route (spec `docs/STM32CUBE_PORTING_PLAN.md` §8 Ф0, §9 risks #1–#2).
 
-**Architecture:** Official native route (spec §2 Route B): an STM32CubeMX project with **Makefile** toolchain + **FreeRTOS (CMSIS-OS v2)**, the official **`micro_ros_stm32cubemx_utils`** (pinned `jazzy` commit) vendored as a submodule, and **`libmicroros.a`** built once by the Docker image `microros/micro_ros_static_library_builder:jazzy`. ABI match is guaranteed *by flag forwarding* — the Docker builder reads the app's CFLAGS via a `print_cflags` Makefile target and compiles the library with the same `-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard`; `colcon.meta` sets `RCUTILS_NO_64_ATOMIC=ON`. There is **no application logic** in F0 — only enough to force the linker to pull in micro-ROS symbols.
+**Architecture:** Official native route (spec §2 Route B): an STM32CubeMX project with **Makefile** toolchain + **FreeRTOS (CMSIS-OS v2)**, the official **`micro_ros_stm32cubemx_utils`** (pinned `jazzy` commit) vendored as a submodule, and **`libmicroros.a`** built once by the Docker image `microros/micro_ros_static_library_builder:jazzy`. ABI match is guaranteed *by flag forwarding* — the Docker builder reads the app's CFLAGS via a `print_cflags` Makefile target and compiles the library with the same `-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard`; `colcon.meta` sets `RCUTILS_NO_64_ATOMIC=ON` (covers `rcutils` only; `rcl` still needs an app-provided `__atomic_*_8` shim — Task 5a). There is **no application logic** in F0 — only enough to force the linker to pull in micro-ROS symbols.
 
 **Tech Stack:** STM32CubeMX, GNU Arm Embedded toolchain (`arm-none-eabi-gcc`), GNU Make, Docker, FreeRTOS/CMSIS-OS v2, micro-ROS (`rcl`/`rclc`/`rmw_microxrcedds`) via `micro_ros_stm32cubemx_utils@a5b2127`. Target: STM32F446RETx (Cortex-M4F).
 
@@ -22,6 +22,8 @@ Plan 2 of 7 for the native STM32Cube port (see `docs/STM32CUBE_PORTING_PLAN.md`)
 
 **F0 is intentionally a "does it LINK" gate, not a "does it RUN" gate.** A clean link proves the float-ABI and 64-bit-atomics issues — the two things that killed the unsupported PlatformIO route (spec §2 Route A) — are resolved. Booting is a separate, runtime concern owned by Plan 3.
 
+**Empirically validated (2026-06-04).** The real `libmicroros.a` was built via the official jazzy Docker flow and inspected with the Cortex-M4F toolchain: **float-ABI = PASS** (all 2014 members hard-float `Tag_ABI_VFP_args: VFP registers` — the Route-A VFP wall does NOT occur with this flow), and **64-bit atomics = needs a shim** (`rcl` references `__atomic_*_8` that `arm-none-eabi` cannot satisfy on M4). A PRIMASK critical-section shim (Task 5a) was proven to make the realistic micro-ROS symbol set link cleanly (hard-float, strict `--whole-archive --no-gc-sections`). So F0 is **two** gates — VFP **and** atomics/POSIX — reflected in Task 5a and the Task 6 FAIL signatures.
+
 ---
 
 ## File Structure
@@ -35,6 +37,8 @@ The CubeMX project lives in a new top-level `firmware_stm32/` (alongside `firmwa
 | `firmware_stm32/Makefile` | Build script (+ micro-ROS addon block) | CubeMX, then patched (Task 4) |
 | `firmware_stm32/Core/` , `Drivers/`, `Middlewares/` | Generated HAL/FreeRTOS/CMSIS sources | CubeMX (Task 2) |
 | `firmware_stm32/Core/Src/main.c` (or `freertos.c`) | Minimal micro-ROS task (USER CODE blocks) | Author (Task 5) |
+| `firmware_stm32/Core/Src/microros_atomic64.c` | 64-bit atomic shim — Cortex-M4 (**REQUIRED**, empirically validated) | Author (Task 5a) |
+| `firmware_stm32/Core/Src/microros_posix_stubs.c` | `usleep`→`osDelay` (**REQUIRED**) | Author (Task 5a) |
 | `firmware_stm32/startup_*.s`, `*_FLASH.ld` | Startup + linker script | CubeMX (Task 2) |
 | `firmware_stm32/micro_ros_stm32cubemx_utils/` | Vendored utils (submodule @ pinned commit) | Task 3 |
 | `firmware_stm32/.gitignore` | Ignore `build/` + `libmicroros/`, **keep** generated sources | Author (Task 7) |
@@ -204,6 +208,13 @@ C_SOURCES += micro_ros_stm32cubemx_utils/extra_sources/microros_time.c
 # Custom transport: it_transport is simplest for F0 (USART2 global IT only, no DMA)
 C_SOURCES += micro_ros_stm32cubemx_utils/extra_sources/microros_transports/it_transport.c
 
+# REQUIRED on Cortex-M4 (Task 5a, empirically validated): 64-bit-atomics shim + usleep.
+# rcl (time/timer/client) calls __atomic_*_8 unconditionally; arm-none-eabi has no
+# baremetal 64-bit atomics; RCUTILS_NO_64_ATOMIC=ON covers rcutils only. Without these
+# the F0 link fails: "undefined reference to __atomic_load_8" (and to usleep).
+C_SOURCES += Core/Src/microros_atomic64.c
+C_SOURCES += Core/Src/microros_posix_stubs.c
+
 print_cflags:
 	@echo $(CFLAGS)
 ```
@@ -316,6 +327,95 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
+### Task 5a: 64-bit atomic shim + `usleep` stub — REQUIRED for the F0 link
+
+**Why (empirically validated 2026-06-04, corroborated by micro_ros_stm32cubemx_utils#112).** The real `libmicroros.a` references `__atomic_{load,store,exchange,compare_exchange}_8` from `librcl-time.c.obj` / `librcl-timer.c.obj` / `librcl-client.c.obj` (+ `librcutils-fault_injection.c.obj`), and `arm-none-eabi` 13.2.1 provides **no** 64-bit atomics for the Cortex-M4 hard multilib (no `LDREXD`/`STREXD`; no baremetal `libatomic`). `RCUTILS_NO_64_ATOMIC=ON` neutralizes only `rcutils`' `atomic_64bits.c`; `rcl`'s `time.c`/`timer.c`/`client.c` use 64-bit atomics **unconditionally** — and our firmware drives an `rcl` 50 Hz timer, which reaches that path. The maintainer's stated fix is: *"provide an implementation of `__atomic_load_8`."* Separately, `rclc_sleep_ms` needs `usleep` (NOT shipped by the utils; `clock_gettime` IS shipped by `microros_time.c` — do not re-stub it). A PRIMASK critical-section shim was proven to link the realistic micro-ROS symbol set cleanly (hard-float, strict `--whole-archive --no-gc-sections`).
+
+**Files:**
+- Create: `firmware_stm32/Core/Src/microros_atomic64.c`
+- Create: `firmware_stm32/Core/Src/microros_posix_stubs.c`
+
+- [ ] **Step 1: Create the 64-bit atomic shim**
+Create `firmware_stm32/Core/Src/microros_atomic64.c`:
+```c
+/* 64-bit atomics shim for single-core Cortex-M (STM32F446, M4F).
+ * Resolves __atomic_*_8 referenced by libmicroros.a (rcl time/timer/client,
+ * rcutils fault_injection) — arm-none-eabi has no baremetal 64-bit atomics.
+ * SINGLE-CORE ONLY: mutual exclusion vs ISRs via PRIMASK, NOT vs a 2nd core
+ * (this would be WRONG on dual-core H7/MP1). Ref: micro_ros_stm32cubemx_utils#112,
+ * RIOT core/lib/atomic_c11.c. Memory-order args are irrelevant on single-core. */
+#include <stdint.h>
+#include <stdbool.h>
+#include "cmsis_compiler.h"   /* __get_PRIMASK / __disable_irq / __set_PRIMASK / __DMB */
+
+static inline uint32_t cs_enter(void) {
+    uint32_t primask = __get_PRIMASK();   /* save */
+    __disable_irq();
+    return primask;
+}
+static inline void cs_exit(uint32_t primask) {
+    __set_PRIMASK(primask);               /* restore (re-enables only if it was enabled) */
+}
+
+uint64_t __atomic_load_8(const volatile void *ptr, int memorder) {
+    (void)memorder; uint32_t s = cs_enter();
+    uint64_t v = *(const volatile uint64_t *)ptr; cs_exit(s); return v;
+}
+void __atomic_store_8(volatile void *ptr, uint64_t val, int memorder) {
+    (void)memorder; uint32_t s = cs_enter();
+    *(volatile uint64_t *)ptr = val; cs_exit(s);
+}
+uint64_t __atomic_exchange_8(volatile void *ptr, uint64_t val, int memorder) {
+    (void)memorder; uint32_t s = cs_enter(); volatile uint64_t *p = ptr;
+    uint64_t old = *p; *p = val; cs_exit(s); return old;
+}
+bool __atomic_compare_exchange_8(volatile void *ptr, void *expected, uint64_t desired,
+                                 bool weak, int success_memorder, int failure_memorder) {
+    (void)weak; (void)success_memorder; (void)failure_memorder;
+    uint32_t s = cs_enter(); volatile uint64_t *p = ptr; uint64_t *exp = expected;
+    bool ok = (*p == *exp); if (ok) *p = desired; else *exp = *p; cs_exit(s); return ok;
+}
+uint64_t __atomic_fetch_add_8(volatile void *ptr, uint64_t val, int memorder) {
+    (void)memorder; uint32_t s = cs_enter(); volatile uint64_t *p = ptr;
+    uint64_t old = *p; *p = old + val; cs_exit(s); return old;
+}
+```
+> Signature note: `__atomic_compare_exchange_8` is the **6-arg** form (`bool weak` + two memorder ints) — a single-memorder version silently mismatches the call site. Do not use a naive `LDRD` instead of the critical section (a 64-bit load is not atomic vs a concurrent CAS on M4).
+
+- [ ] **Step 2: Create the POSIX `usleep` stub**
+Create `firmware_stm32/Core/Src/microros_posix_stubs.c`:
+```c
+/* usleep over FreeRTOS — required by librclc-sleep.c.obj (rclc_sleep_ms).
+ * NOTE: clock_gettime is intentionally NOT here — the utils' microros_time.c
+ * already provides it (FreeRTOS-tick based). Do not duplicate it. */
+#include <unistd.h>
+#include "cmsis_os.h"
+int usleep(useconds_t usec) {
+    osDelay(usec / 1000U);   /* tick-granular; sub-ms rounds toward 0 */
+    return 0;
+}
+```
+
+- [ ] **Step 3: Confirm both are in the Makefile `C_SOURCES`** (added in Task 4 Step 1)
+```bash
+grep -E 'microros_atomic64\.c|microros_posix_stubs\.c' firmware_stm32/Makefile
+```
+Expected: both lines present.
+
+- [ ] **Step 4: Commit**
+```bash
+git add firmware_stm32/Core/Src/microros_atomic64.c firmware_stm32/Core/Src/microros_posix_stubs.c
+git commit -m "feat(stm32): 64-bit atomic shim + usleep stub (Cortex-M4 micro-ROS link fix)
+
+rcl uses __atomic_*_8 unconditionally; arm-none-eabi has no baremetal 64-bit
+atomics (RCUTILS_NO_64_ATOMIC covers rcutils only). PRIMASK critical-section
+shim per micro_ros_stm32cubemx_utils#112; usleep -> osDelay for rclc_sleep_ms.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+```
+
+---
+
 ### Task 6: Build `libmicroros.a` and link the firmware — THE F0 SMOKE
 
 **Files:** none (produces `firmware_stm32/micro_ros_stm32cubemx_utils/microros_static_library/libmicroros/` and `firmware_stm32/build/`, both gitignored in Task 7).
@@ -360,10 +460,14 @@ A `text` of tens-to-hundreds of KB means micro-ROS was linked in. Confirm:
 test -f build/*.elf && arm-none-eabi-size build/*.elf
 ```
 
-If the link FAILS, match the signature:
-- **`undefined reference to '__sync_synchronize'`** (or `__sync_*_8`/`__atomic_*` on 8-byte types) → `RCUTILS_NO_64_ATOMIC=ON` was not applied; the `libmicroros.a` is wrong/stale. Rebuild (Step 2). This is exactly the failure the pinned `colcon.meta` prevents.
-- **`<proj>.elf uses VFP register arguments, libmicroros.a(...) does not`** → float-ABI mismatch; `print_cflags` did not forward `-mfloat-abi=hard` (TAB missing → build aborted, or stale lib). Fix Task 4 Step 2/3, rebuild (Step 2).
-- **`undefined reference to '_sbrk'` / `'_gettimeofday'`** → `syscalls.c` not in the build; regenerate with syscalls enabled (Task 2 Step 8).
+If the link FAILS, match the signature (empirically characterized 2026-06-04 against the real `libmicroros.a`):
+- **`undefined reference to '__atomic_load_8'`** (and `__atomic_store_8`/`__atomic_exchange_8`/`__atomic_compare_exchange_8`) → the **expected** Cortex-M4 case: the Task 5a `microros_atomic64.c` shim is missing from `C_SOURCES`. These come from `rcl` (time/timer/client) and are **not** fixed by `RCUTILS_NO_64_ATOMIC` (rcutils-only). Add the shim (Task 5a / Task 4 Step 1) — do NOT rebuild `libmicroros.a` for this.
+- **`undefined reference to 'usleep'`** (from `librclc-sleep.c.obj`) → add `microros_posix_stubs.c` (Task 5a).
+- **`undefined reference to '__sync_synchronize'`** → benign memory barrier; the Task 5a shim defines it. This was the *Arduino/PlatformIO* symptom (from `rcutils-atomic_64bits`); on the native route the real wall is `__atomic_*_8`, above.
+- **`<proj>.elf uses VFP register arguments, libmicroros.a(...) does not`** → float-ABI mismatch. **Empirically this does NOT occur** with the official Docker/Makefile flow (all 2014 members verified hard-float). If it does, `print_cflags` didn't forward `-mfloat-abi=hard` (TAB missing → build aborted, or stale lib). Fix Task 4 Step 2/3, rebuild (Step 2).
+- **`undefined reference to '_sbrk'`** → `syscalls.c` not in the build; regenerate with syscalls enabled (Task 2 Step 8). (`clock_gettime` is already provided by the utils' `microros_time.c` — do not re-stub it; `_gettimeofday` is a benign newlib warning unless your code calls `gettimeofday()`.)
+
+> **Stronger oracle (recommended for CI):** a plain `make` uses `--gc-sections`, which can *mask* a latent 64-bit-atomics gap by dead-stripping the atomic-using functions if the reached code happens not to call them. To gate conservatively, also do a whole-archive link: `arm-none-eabi-gcc <flags> -Wl,--whole-archive libmicroros.a -Wl,--no-whole-archive -Wl,--no-gc-sections -Wl,--unresolved-symbols=report-all -nostartfiles -e 0 -o /tmp/lp.elf` and require zero `__atomic_*_8` / VFP errors (the expected app-provided `clock_gettime`/`usleep`/`_sbrk`/typesupport symbols don't count).
 
 - [ ] **Step 5: Record the result**
 This task makes no commit (its outputs are gitignored). Capture the `arm-none-eabi-size` line in the task report — it is the evidence F0 passed.
