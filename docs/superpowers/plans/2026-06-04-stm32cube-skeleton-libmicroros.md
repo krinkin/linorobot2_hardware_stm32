@@ -24,6 +24,8 @@ Plan 2 of 7 for the native STM32Cube port (see `docs/STM32CUBE_PORTING_PLAN.md`)
 
 **Empirically validated (2026-06-04).** The real `libmicroros.a` was built via the official jazzy Docker flow and inspected with the Cortex-M4F toolchain: **float-ABI = PASS** (all 2014 members hard-float `Tag_ABI_VFP_args: VFP registers` — the Route-A VFP wall does NOT occur with this flow), and **64-bit atomics = needs a shim** (`rcl` references `__atomic_*_8` that `arm-none-eabi` cannot satisfy on M4). A PRIMASK critical-section shim (Task 5a) was proven to make the realistic micro-ROS symbol set link cleanly (hard-float, strict `--whole-archive --no-gc-sections`). So F0 is **two** gates — VFP **and** atomics/POSIX — reflected in Task 5a and the Task 6 FAIL signatures.
 
+**F0 closed end-to-end on a real ELF (2026-06-04).** Beyond archive inspection, a real bare-metal F446 image (ST CMSIS startup + `system_stm32f4xx.c` + a standard F446RE linker script + the Task 5a shim + `microros_time.c`/stubs + the official `libmicroros.a`) was linked on a Cortex-M4F toolchain: **clean link, 73.7 KB Flash / 22.6 KB static RAM, hard-float**, with `rcl`'s timer/time/client 64-bit-atomic path linked in. Control proof: the identical link **without** the shim fails on `__atomic_compare_exchange_8`; **with** it, links. This validates the integration (startup + linker + micro-ROS + shim) independent of the CubeMX/FreeRTOS specifics (which remain Plan 3 runtime concerns). The bare-metal harness is a *stand-in* for the GUI-generated CubeMX/FreeRTOS project — Task 2's GUI generation still runs on a workstation; but the load-bearing F0 risk (the ABI/atomics link) is now empirically retired.
+
 ---
 
 ## File Structure
