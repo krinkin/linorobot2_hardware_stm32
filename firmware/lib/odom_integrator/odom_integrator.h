@@ -19,6 +19,11 @@
 
 // Pure dead-reckoning integrator + Euler->quaternion conversion.
 // No Arduino, no ROS, no micro-ROS dependencies -> host-unit-testable.
+//
+// Trig is evaluated in single precision (float cos/sin, 0.5f literals). The
+// original inline odometry math computed cos/sin in double then narrowed to
+// float; the difference is sub-ULP, negligible for odometry, and matches the
+// single-precision FPUs on the target MCUs (e.g. STM32F4).
 class OdomIntegrator
 {
     public:
