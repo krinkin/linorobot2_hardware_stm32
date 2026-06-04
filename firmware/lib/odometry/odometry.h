@@ -20,6 +20,7 @@
 #include <micro_ros_utilities/string_utilities.h>
 #include <nav_msgs/msg/odometry.h>
 #include "config.h"
+#include "odom_integrator.h"
 
 #ifndef POSE_COV
 #define POSE_COV { 0.0001, 0.0001, 0, 0, 0, 0.0001 }
@@ -36,12 +37,8 @@ class Odometry
         nav_msgs__msg__Odometry getData();
 
     private:
-        const void euler_to_quat(float x, float y, float z, float* q);
-
         nav_msgs__msg__Odometry odom_msg_;
-        float x_pos_;
-        float y_pos_;
-        float heading_;
+        OdomIntegrator integrator_;
 };
 
 #endif
