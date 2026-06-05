@@ -12,7 +12,8 @@ run them bottom-up; a failure in a lower tier explains failures above it.
 |---|---|---|---|
 | **A — host unit tests** | the portable math (`kinematics`, `pid`, `odometry`) is correct | `g++`, `make` | seconds |
 | **B — firmware F0 link** | the real F446 firmware **links** micro-ROS (float-ABI + 64-bit atomics OK) | `arm-none-eabi-gcc`, `docker` | ~1 min (lib) + seconds |
-| **C — Renode boot (Ф2)** | the firmware **boots**: FreeRTOS starts, `rclc_support_init` runs, no HardFault | `renode` | ~1 min |
+| **C — Renode boot (Ф2)** | the firmware **comes alive**: FreeRTOS scheduler ticks, `uros_task` runs, and it **transmits the micro-ROS ping** on USART2 | `renode`, `socat` | ~1 min |
+| **C+ — agent round-trip (Ф3)** | a real `micro_ros_agent` establishes a **live XRCE session** with the emulated firmware (node `stm32_node`) | `renode`, `docker`, `socat` | ~1 min |
 
 Why split this way: Tier A runs anywhere with zero embedded toolchain (fast TDD on the
 math); Tier B is a pure *link* gate (the riskiest thing in the whole port — see §7);
@@ -43,7 +44,8 @@ Or drive each tier:
 make test-host   # Tier A
 make libmicroros # build libmicroros.a (once; cached afterwards)
 make build-fw    # Tier B (link firmware)  -> firmware_stm32/build/firmware_stm32.elf
-make renode      # Tier C (boot smoke)
+make renode      # Tier C  (Ф2 boot smoke — firmware transmits the ping)
+make agent-roundtrip   # Tier C+ (Ф3 — live micro_ros_agent <-> firmware XRCE session)
 ```
 
 ## 4. Tier A — host unit tests (the math)
@@ -91,15 +93,41 @@ make renode          # boots build/firmware_stm32.elf in Renode, asserts no Hard
 # (set RENODE=/path/to/renode if it isn't on PATH)
 ```
 - **What it does:** `firmware_stm32/renode/boot_smoke.sh` loads the ELF on Renode's
-  generic `stm32f4.repl`, runs 1 s of virtual time, and checks the CPU is **not** halted
-  and **not** sitting in `HardFault_Handler` — i.e. FreeRTOS started and `rclc_support_init`
-  ran without faulting. CI runs the same check via `renode/boot_smoke.robot`.
-- **Reading the result:** `✅ Ф2 PASS: booted, FreeRTOS running, no HardFault`.
-- **Known emulator caveat:** Renode doesn't model the **DWT** cycle counter, so the
-  HAL timebase (`HAL_GetTick` via DWT in `main.c`) is frozen there. It doesn't fault, but
-  the agent round-trip (Plan 4) will need the HAL timebase moved to a TIM / the FreeRTOS
-  tick so UART timeouts fire. Neither emulator is baud/timing-accurate, so framing and
-  real-time jitter remain hardware-only checks.
+  generic `stm32f4.repl`, wires USART2 to a raw TCP socket, and reads it with `socat`.
+  PASS iff the firmware **emits bytes** — the `rmw_uros_ping_agent` GET_INFO frame. That
+  is a strictly stronger gate than "no HardFault": it proves the scheduler started, the
+  task was scheduled, and the HAL-UART transport ran. CI runs `renode/boot_smoke.robot`,
+  which asserts the same liveness a different way — `xTickCount != 0` and
+  `uxCurrentNumberOfTasks != 0` (the scheduler actually ticked).
+- **Reading the result:** `✅ Ф2 PASS: scheduler + uros_task + UART transport alive`.
+- **Why the strong check matters (a real bug it caught):** a `configASSERT` failure
+  (`taskDISABLE_INTERRUPTS(); for(;;);`) is **not** a HardFault — it's an interrupt-disabled
+  spin. A "PC != HardFault" smoke *passes* such a startup hang. The ping/tick check does
+  not. See §7.5.
+- **Emulator caveat:** the HAL timebase is the FreeRTOS tick (not DWT — Renode doesn't
+  model the DWT cycle counter), so HAL-UART timeouts fire correctly in emulation. Neither
+  emulator is baud/timing-accurate, so wire framing and real-time jitter remain
+  hardware-only checks.
+
+## 6b. Tier C+ — agent round-trip (Ф3)
+
+```bash
+make agent-roundtrip   # Renode raw socket <-> socat <-> micro_ros_agent (Docker)
+```
+- **What it does:** `firmware_stm32/renode/agent_bridge.sh` runs the firmware in Renode
+  with USART2 on a **raw** TCP socket, and bridges a real `micro_ros_agent` to it. The
+  firmware's wait-for-agent loop (`rmw_uros_ping_agent`) connects, then
+  `rclc_node_init_default("stm32_node")` creates a participant. PASS iff the agent logs
+  `session established` + `participant created`.
+- **The bridge, and why it's shaped this way:** a Docker container **cannot open a host
+  pty** across the devpts namespace, so `socat` (TCP↔pty) **and** the agent run inside one
+  `--network host` container — the pty is then local to that container. The script picks a
+  free port (a just-killed Renode leaves the old one in `TIME_WAIT`; Renode's socket has no
+  `SO_REUSEADDR`) and uses a passive `ss` listen check so `socat` is the socket terminal's
+  sole client.
+- **Reading the result:** `✅ Ф3 PASS: live micro-ROS round-trip — XRCE session + participant created`.
+- Not in CI by default (needs Docker + socat on the runner; builds a ~500 MB socat-augmented
+  agent image on first run). Run it locally / as an opt-in gate.
 
 ## 7. The two link gotchas (why Tier B is the risk)
 
@@ -116,6 +144,20 @@ but know them so you can read a failure:
 Other unresolved symbols at link (`_sbrk`, `clock_gettime`, `usleep`) are **app-provided**:
 `clock_gettime` comes from the utils' `microros_time.c`; `usleep` + `clock_gettime` glue is
 in `Src/microros_glue.c`; `_sbrk` etc. from `-specs=nosys.specs`.
+
+## 7.5. The two runtime gotchas (why Ф3 was hard)
+
+These bite at *run* time (the firmware links and "boots") and were the Plan-4 blockers:
+1. **FreeRTOS task priority `< configMAX_PRIORITIES`.** `configMAX_PRIORITIES` is 7 here, so
+   valid priorities are 0–6. `osPriorityNormal` (24) from CMSIS-RTOS is **not** valid in raw
+   FreeRTOS — `xTaskCreate(...,24,...)` trips `configASSERT(uxPriority < configMAX_PRIORITIES)`,
+   which disables interrupts and spins **inside `xTaskCreate`, before the scheduler starts**.
+   The fix is `configMAX_PRIORITIES - 2`. This is why the Ф2 smoke checks *liveness*, not just
+   "no fault" (§6).
+2. **Renode socket terminals default to TELNET.** `emulation CreateServerSocketTerminal <port>
+   "name"` injects telnet IAC negotiation and escapes `0xFF`, corrupting the **binary** XRCE
+   stream both ways → the agent never sees a session. Pass the 3rd arg `false`
+   (`emitConfigBytes=false`) for a raw socket.
 
 ## 8. CI
 
@@ -140,14 +182,17 @@ firmware_stm32/               # Tier B/C: the GUI-free native firmware
   Src/{main,microros_glue,microros_atomic64}.c
   vendor/                     #   pinned submodules: cmsis_device_f4, cmsis_core, HAL, FreeRTOS-Kernel
   micro_ros_stm32cubemx_utils #   pinned submodule (a5b2127); supplies extra_sources + the Docker builder
-  renode/{boot_smoke.sh,.resc,.robot}   # Tier C
+  renode/boot_smoke.sh                  # Tier C  (Ф2: firmware transmits the ping)
+  renode/boot_smoke.robot               # Tier C  (Ф2 in CI: scheduler ticked)
+  renode/agent_bridge.sh                # Tier C+ (Ф3: live agent round-trip)
 docs/STM32CUBE_PORTING_PLAN.md            # the design spec (phases Ф0–Ф7)
-docs/superpowers/plans/2026-06-04-*.md    # the per-phase implementation plans
+docs/superpowers/plans/2026-06-*-*.md     # the per-phase implementation plans
 ```
 
 ## 10. Where this sits in the global plan
 
 The port is a 7-plan sequence across phases Ф0–Ф7 (see `docs/STM32CUBE_PORTING_PLAN.md` §8):
-Ф1 host tests (Plan 1, done) · **Ф0 link** (Plan 2) · **Ф2 boot** (Plan 3) · Ф3 transport+agent
-(Plan 4) · Ф4 encoder/PWM (Plan 5) · Ф5 IMU (Plan 6) · Ф6 full loop+CI (Plan 7) · Ф7 hardware.
-Tiers A/B/C above correspond to Ф1/Ф0/Ф2 — the emulation-provable foundation.
+Ф1 host tests (Plan 1, **done**) · Ф0 link (Plan 2, **done**) · Ф2 boot (Plan 3, **done**) ·
+Ф3 transport+agent (Plan 4, **done** — live round-trip in emulation) · Ф4 encoder/PWM (Plan 5,
+next) · Ф5 IMU (Plan 6) · Ф6 full loop+CI (Plan 7) · Ф7 hardware. Tiers A/B/C/C+ above
+correspond to Ф1/Ф0/Ф2/Ф3 — the emulation-provable foundation.
