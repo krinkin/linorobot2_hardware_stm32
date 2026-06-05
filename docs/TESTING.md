@@ -1,0 +1,153 @@
+# Building & testing the STM32 native (GUI-free) port
+
+This is your hands-on guide to **build everything and drive the tests yourself**. No
+STM32CubeMX, no GUI — everything is a `make` target you can run and reason about.
+
+## 1. The mental model: three tiers
+
+Testing is split into three independent tiers, each proving a different thing. You
+run them bottom-up; a failure in a lower tier explains failures above it.
+
+| Tier | What it proves | Needs | Speed |
+|---|---|---|---|
+| **A — host unit tests** | the portable math (`kinematics`, `pid`, `odometry`) is correct | `g++`, `make` | seconds |
+| **B — firmware F0 link** | the real F446 firmware **links** micro-ROS (float-ABI + 64-bit atomics OK) | `arm-none-eabi-gcc`, `docker` | ~1 min (lib) + seconds |
+| **C — Renode boot (Ф2)** | the firmware **boots**: FreeRTOS starts, `rclc_support_init` runs, no HardFault | `renode` | ~1 min |
+
+Why split this way: Tier A runs anywhere with zero embedded toolchain (fast TDD on the
+math); Tier B is a pure *link* gate (the riskiest thing in the whole port — see §7);
+Tier C is a *runtime* gate in emulation (no hardware needed).
+
+## 2. Prerequisites
+
+```bash
+# one-time: pull the vendored sources (CMSIS / HAL / FreeRTOS / micro-ROS utils)
+git submodule update --init --recursive
+
+# toolchain (Debian/Ubuntu)
+sudo apt-get install -y g++ make gcc-arm-none-eabi binutils-arm-none-eabi docker.io
+# Renode (for Tier C): https://github.com/renode/renode/releases  (portable build, needs mono)
+```
+No CubeMX, no myST account, no `.ioc`. Docker is used only to build `libmicroros.a`
+(the prebuilt micro-ROS static library); the firmware itself is built by your host
+`arm-none-eabi-gcc` from a hand-written `Makefile`.
+
+## 3. Quick start
+
+```bash
+make help        # list the targets
+make test-all    # Tier A + B + C, in order  ->  "ALL TIERS GREEN"
+```
+Or drive each tier:
+```bash
+make test-host   # Tier A
+make libmicroros # build libmicroros.a (once; cached afterwards)
+make build-fw    # Tier B (link firmware)  -> firmware_stm32/build/firmware_stm32.elf
+make renode      # Tier C (boot smoke)
+```
+
+## 4. Tier A — host unit tests (the math)
+
+```bash
+make test-host       # == make -C test_host clean && make -C test_host test
+```
+- **What runs:** `test_host/` compiles `kinematics`/`pid`/`odom_integrator` with plain
+  `g++` against a tiny `Arduino.h` shim + the vendored `doctest` single-header framework.
+- **Reading the result:** ends with `[doctest] Status: SUCCESS!` and `N passed | 0 failed`.
+- **Add a test:** drop a `test_host/test_<thing>.cpp` (the `Makefile` auto-discovers
+  `test_*.cpp` via `$(wildcard)`), `#include "doctest.h"` + the header under test, write
+  `TEST_CASE("...") { CHECK(...); }`, then `make test-host`. The framework is doctest, so
+  use `CHECK`, `REQUIRE`, `doctest::Approx(x)` (note: doctest has `.epsilon()`, **not**
+  Catch2's `.margin()` — use `std::fabs(x) < eps` for near-zero checks).
+- See `test_host/README.md` for the layout.
+
+## 5. Tier B — firmware F0 link
+
+```bash
+make libmicroros     # build the micro-ROS static lib (pinned Docker image) — once
+make build-fw        # link firmware_stm32  ->  build/firmware_stm32.elf (+ .hex/.bin)
+```
+- **What `make libmicroros` does:** runs the pinned `micro_ros_static_library_builder`
+  Docker image; it reads the firmware's exact compile flags via `make print_cflags` and
+  compiles `libmicroros.a` with the *same* `-mcpu=cortex-m4 -mfpu=fpv4-sp-d16
+  -mfloat-abi=hard`. This is what guarantees the float-ABI match (no "VFP register
+  arguments" wall). Output: `firmware_stm32/micro_ros_stm32cubemx_utils/.../libmicroros.a`.
+- **What `make build-fw` does:** compiles the hand-written project (CMSIS startup +
+  `system_stm32f4xx.c` + STM32 HAL + FreeRTOS + `Src/main.c`/`microros_glue.c` +
+  the 64-bit-atomic shim `microros_atomic64.c`) and links it against `libmicroros.a`.
+- **Reading the result:** the `arm-none-eabi-size` line (≈ 49 KB Flash / 73.5 KB RAM)
+  and a clean link. Confirm hard-float: `arm-none-eabi-readelf -A
+  firmware_stm32/build/firmware_stm32.elf | grep Tag_ABI_VFP_args` → `VFP registers`.
+- **The non-obvious part — the 64-bit atomic shim:** `rcl` uses `__atomic_*_8` and
+  `arm-none-eabi` has no baremetal 64-bit atomics on Cortex-M4, so
+  `Src/microros_atomic64.c` provides them (PRIMASK critical sections). Remove it and the
+  link fails with `undefined reference to __atomic_load_8` — that's the single most
+  important gotcha of the whole port (see §7).
+
+## 6. Tier C — Renode boot smoke (Ф2)
+
+```bash
+make renode          # boots build/firmware_stm32.elf in Renode, asserts no HardFault
+# (set RENODE=/path/to/renode if it isn't on PATH)
+```
+- **What it does:** `firmware_stm32/renode/boot_smoke.sh` loads the ELF on Renode's
+  generic `stm32f4.repl`, runs 1 s of virtual time, and checks the CPU is **not** halted
+  and **not** sitting in `HardFault_Handler` — i.e. FreeRTOS started and `rclc_support_init`
+  ran without faulting. CI runs the same check via `renode/boot_smoke.robot`.
+- **Reading the result:** `✅ Ф2 PASS: booted, FreeRTOS running, no HardFault`.
+- **Known emulator caveat:** Renode doesn't model the **DWT** cycle counter, so the
+  HAL timebase (`HAL_GetTick` via DWT in `main.c`) is frozen there. It doesn't fault, but
+  the agent round-trip (Plan 4) will need the HAL timebase moved to a TIM / the FreeRTOS
+  tick so UART timeouts fire. Neither emulator is baud/timing-accurate, so framing and
+  real-time jitter remain hardware-only checks.
+
+## 7. The two link gotchas (why Tier B is the risk)
+
+The native micro-ROS-on-Cortex-M port has exactly two link-time walls; both are handled,
+but know them so you can read a failure:
+1. **Float-ABI / VFP** — `... uses VFP register arguments, libmicroros.a(...) does not`.
+   Avoided **by construction**: the Docker builder forwards `print_cflags`, so the lib is
+   built hard-float. If you see it, `print_cflags` didn't emit `-mfloat-abi=hard` (check the
+   `Makefile`'s `MCU`/`FLOAT-ABI`).
+2. **64-bit atomics** — `undefined reference to __atomic_load_8` (from `rcl` time/timer/
+   client). Handled by `Src/microros_atomic64.c`. `RCUTILS_NO_64_ATOMIC=ON` (in the utils'
+   `colcon.meta`) covers `rcutils` only — `rcl` still needs the shim. (Maintainer-confirmed:
+   micro_ros_stm32cubemx_utils#112.)
+Other unresolved symbols at link (`_sbrk`, `clock_gettime`, `usleep`) are **app-provided**:
+`clock_gettime` comes from the utils' `microros_time.c`; `usleep` + `clock_gettime` glue is
+in `Src/microros_glue.c`; `_sbrk` etc. from `-specs=nosys.specs`.
+
+## 8. CI
+
+`.github/workflows/stm32-f446re.yml` runs the same three tiers on every push touching
+`test_host/`, `firmware/lib/`, `firmware_stm32/`, or the root `Makefile`:
+- **host-tests** job → `make test-host`.
+- **stm32-f0-f2** job → `make libmicroros` + `make build-fw` (F0) → `renode-test-action`
+  runs `boot_smoke.robot` (Ф2), Renode pinned to `1.16.1`.
+This is separate from the existing PlatformIO CI (`.github/parse_platformio.py`), which
+only sees `firmware/platformio.ini` envs.
+
+## 9. Repo map (what builds what)
+
+```
+Makefile                      # the entry point (this guide's targets)
+test_host/                    # Tier A: host unit tests (doctest)
+firmware/lib/{kinematics,pid,odometry,odom_integrator}/   # portable math (shared)
+firmware_stm32/               # Tier B/C: the GUI-free native firmware
+  Makefile                    #   hand-written build (+ print_cflags for the Docker builder)
+  STM32F446RETX_FLASH.ld      #   linker script
+  Inc/{FreeRTOSConfig,stm32f4xx_hal_conf}.h
+  Src/{main,microros_glue,microros_atomic64}.c
+  vendor/                     #   pinned submodules: cmsis_device_f4, cmsis_core, HAL, FreeRTOS-Kernel
+  micro_ros_stm32cubemx_utils #   pinned submodule (a5b2127); supplies extra_sources + the Docker builder
+  renode/{boot_smoke.sh,.resc,.robot}   # Tier C
+docs/STM32CUBE_PORTING_PLAN.md            # the design spec (phases Ф0–Ф7)
+docs/superpowers/plans/2026-06-04-*.md    # the per-phase implementation plans
+```
+
+## 10. Where this sits in the global plan
+
+The port is a 7-plan sequence across phases Ф0–Ф7 (see `docs/STM32CUBE_PORTING_PLAN.md` §8):
+Ф1 host tests (Plan 1, done) · **Ф0 link** (Plan 2) · **Ф2 boot** (Plan 3) · Ф3 transport+agent
+(Plan 4) · Ф4 encoder/PWM (Plan 5) · Ф5 IMU (Plan 6) · Ф6 full loop+CI (Plan 7) · Ф7 hardware.
+Tiers A/B/C above correspond to Ф1/Ф0/Ф2 — the emulation-provable foundation.

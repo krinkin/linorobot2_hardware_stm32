@@ -1,0 +1,37 @@
+name: stm32-f446re-microros
+# GUI-free native STM32 port CI: host unit tests + F0 firmware link + Ф2 Renode boot.
+# Separate from .github/parse_platformio.py (that only enumerates platformio.ini envs).
+on:
+  push:
+    paths: ['test_host/**', 'firmware/lib/**', 'firmware_stm32/**', 'Makefile', '.github/workflows/stm32-f446re.yml']
+  pull_request:
+    paths: ['test_host/**', 'firmware/lib/**', 'firmware_stm32/**', 'Makefile', '.github/workflows/stm32-f446re.yml']
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install g++ + make
+        run: sudo apt-get update && sudo apt-get install -y g++ make curl
+      - name: Tier A — host unit tests
+        run: make test-host
+
+  stm32-f0-f2:
+    runs-on: ubuntu-latest          # amd64 — matches pinned image sub-digest 392246e5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive      # CMSIS/HAL/FreeRTOS + micro_ros utils @ pinned commits
+      - name: Install host ARM toolchain + make
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi make
+      - name: Tier B — build libmicroros.a (pinned Docker image) + link firmware (F0)
+        run: |
+          make libmicroros
+          make build-fw
+          arm-none-eabi-size firmware_stm32/build/firmware_stm32.elf
+      - name: Tier C — Renode boot smoke (Ф2)
+        uses: antmicro/renode-test-action@v4
+        with:
+          renode-version: '1.16.1'
+          tests: firmware_stm32/renode/boot_smoke.robot
