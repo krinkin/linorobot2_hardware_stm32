@@ -51,6 +51,12 @@ static void uros_task(void* arg) {
         cubemx_transport_open, cubemx_transport_close,
         cubemx_transport_write, cubemx_transport_read);
 
+    /* Wait for the micro-ROS agent before initializing, so the firmware connects
+     * whenever the agent appears (the canonical reconnect pattern). */
+    while (rmw_uros_ping_agent(200, 1) != RMW_RET_OK) {
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
     rclc_support_t support;
     rcl_allocator_t allocator = rcl_get_default_allocator();
     rcl_node_t node;
@@ -73,7 +79,10 @@ int main(void) {
     huart2.Init.OverSampling = UART_OVERSAMPLING_16;
     HAL_UART_Init(&huart2);
 
-    xTaskCreate(uros_task, "uros", 6144, NULL, 24, NULL);  /* 6144 words = 24 KB */
+    /* Priority MUST be < configMAX_PRIORITIES (raw FreeRTOS, not CMSIS-RTOS where
+     * osPriorityNormal==24). Tie it to the config so it can never exceed the bound
+     * and trip configASSERT(uxPriority < configMAX_PRIORITIES) -> silent hang. */
+    xTaskCreate(uros_task, "uros", 6144, NULL, configMAX_PRIORITIES - 2, NULL);  /* 6144 words = 24 KB */
     vTaskStartScheduler();
     for (;;) {}
 }
