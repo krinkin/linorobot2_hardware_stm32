@@ -12,12 +12,12 @@
 F0/L0/G0/F1-BluePill исключены — micro-ROS туда не влезает).
 
 **Развилка интеграции micro-ROS решена в пользу официального нативного пути (Маршрут B):**
-проект на **CubeMX + Makefile** + официальный **`micro_ros_stm32cubemx_utils`** (ветка `jazzy`),
+проект: **нативный HAL/FreeRTOS + hand-written Makefile (GUI-free, без CubeMX)** + официальный **`micro_ros_stm32cubemx_utils`** (ветка `jazzy`),
 `libmicroros.a` собирается Docker-образом `microros/micro_ros_static_library_builder:jazzy`.
 
 | Решение | Выбор |
 |---|---|
-| Интеграция micro-ROS | Маршрут B (CubeMX + Makefile + `micro_ros_stm32cubemx_utils`, ветка jazzy) |
+| Интеграция micro-ROS | Маршрут B (нативный HAL + hand-written Makefile, **GUI-free**, + `micro_ros_stm32cubemx_utils`, ветка jazzy) |
 | Сборка libmicroros | Docker `microros/micro_ros_static_library_builder:jazzy` (ABI-match по построению) |
 | Модель выполнения | FreeRTOS / CMSIS-OS v2; rclc-executor в задаче со стеком ≥ 24 КБ |
 | Транспорт | UART, compile-time переключатель **DMA** (железо/Renode) ↔ **IT/polling** (QEMU) |
@@ -75,7 +75,7 @@ Compile-time HW-абстракция репозитория (`USE_*`-макро�
 `libmicroros.a uses VFP register arguments` — рассогласование hard-float ABI** между Docker-сборкой и
 тулчейном PlatformIO. Воспроизводимой сборки нет.
 
-**Маршрут B — CubeMX + Makefile + `micro_ros_stm32cubemx_utils`. ВЫБРАН.**
+**Маршрут B — нативный HAL/FreeRTOS + hand-written Makefile (GUI-free) + `micro_ros_stm32cubemx_utils`. ВЫБРАН.**
 - Живая ветка `jazzy` (совпадает с моделью «дистрибутив = ветка» этого репо).
 - **ABI совпадает по построению:** Docker-сборщик берёт реальные CFLAGS приложения через
   `make print_cflags` и прокидывает их в colcon → нет VFP-стены Маршрута A.
@@ -91,7 +91,7 @@ Compile-time HW-абстракция репозитория (`USE_*`-макро�
 
 ## 3. Структура репозитория
 
-- Новый каталог **`firmware_stm32/`** (CubeMX-проект + Makefile) **рядом** с `firmware/`, не вместо.
+- Новый каталог **`firmware_stm32/`** (hand-written HAL/FreeRTOS проект + Makefile, **без CubeMX/GUI**) **рядом** с `firmware/`, не вместо.
 - Портируемые либы (`firmware/lib/{kinematics,pid,odometry}`) подключаются **по include-ссылке**, не
   форкаются — single source of truth между Arduino- и Cube-сборками.
 - `micro_ros_stm32cubemx_utils` вендорится (submodule или копия с pin'ом коммита).
@@ -117,7 +117,7 @@ Compile-time HW-абстракция репозитория (`USE_*`-макро�
 | Транспорт | `firmware/src/firmware.ino:183` | 🔁 rewrite | custom transport DMA/IT (§5.4) |
 | Платформенный клей | `firmware/src/firmware.ino` (setup/loop, Serial, millis…) | 🪡 shim | → HAL/FreeRTOS-задача (§5.5) |
 | Board config | `firmware_stm32/.../f446re_config.h` | 🆕 new | pin-map → конкретные `TIMx_CHy` + AF |
-| Сборка | `firmware_stm32/Makefile` (+ CubeMX `.ioc`) | 🆕 new | Makefile-flow micro_ros_stm32cubemx_utils |
+| Сборка | `firmware_stm32/Makefile` (hand-written, GUI-free) | 🆕 new | Makefile-flow micro_ros_stm32cubemx_utils |
 | CI | `.github/workflows/stm32cube.yml` | 🆕 new | отдельный workflow (§7) |
 
 **Вне области (не выбрано пользователем):** `QMI8658` и `default_mag.h`/QMC5883L (прямой Wire) — отдельные
@@ -233,7 +233,7 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 
 ## 8. Фазы (milestones)
 
-- **Ф0 — скелет:** CubeMX-проект F446RE компилируется, `libmicroros.a` линкуется (**ABI-smoke** —
+- **Ф0 — скелет:** проект F446RE (hand-written HAL/FreeRTOS, GUI-free) компилируется, `libmicroros.a` линкуется (**ABI-smoke** —
   **ABI-smoke = ДВА гейта**: VFP **и** 64-бит атомики/POSIX. Эмпирически: VFP снят (все 2014 членов hard-float); атомики требуют `__atomic_*_8`-шима + `usleep` (Plan 2 Task 5a)).
 - **Ф1 — host-тесты:** `kinematics/pid/odometry`-интегратор зелёные на ПК.
 - **Ф2 — Renode boot:** FreeRTOS стартует, `rclc_support_init` без HardFault (стек 24–32 КБ).
@@ -287,7 +287,7 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 | STM32Cube HAL/LL + BSP | BSD-3-Clause | ✅ |
 | CMSIS Core + Device | Apache-2.0 | ✅ |
 | arm-none-eabi-gcc / GNU Make | GPL (+GCC-exception) | ✅ |
-| STM32CubeMX/IDE/Programmer | SLA0048 (проприет. freeware) | ✅ (free-of-charge; codegen офлайн) |
+| STM32CubeMX/IDE/Programmer | SLA0048 (проприет. freeware) | ⛔ **НЕ используется** (порт GUI-free) |
 | micro_ros_stm32cubemx_utils, rcl/rclc/rmw, Micro XRCE-DDS, ROS 2 Jazzy | Apache-2.0 | ✅ |
 | Renode / renode-test-action / Robot Framework | MIT / Apache-2.0 | ✅ |
 | QEMU | GPL-2.0 | ✅ |
@@ -303,8 +303,8 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 1. В CI — **Docker Engine** на Linux-runner'ах, не Docker Desktop.
 2. Репозиторий **публичный** → Actions бесплатны без лимита (иначе 2000 мин/мес или self-hosted).
 3. Docker Hub pull-лимиты — `docker/login-action`/зеркало GHCR (троттлинг, не цена).
-4. ST GUI-тулзы в CI не нужны: собираем из **BSD-3/Apache-2.0** исходников HAL/LL/CMSIS + gcc; CubeMX-кодоген
-   делаем офлайн на рабочей станции.
+4. **ST GUI-тулзы (CubeMX/IDE) не используются вообще** — проект hand-written из **BSD-3/Apache-2.0** исходников
+   HAL/CMSIS + FreeRTOS (MIT) + gcc; никакого CubeMX/`.ioc`/GUI. Это и даёт полную CI-воспроизводимость.
 5. **UART-транспорт** обходит проприетарный SLA0044 (`STM32_USB_Device_Library`) — лишний довод за UART.
 
 Замена инструментов **не требуется** — нужны лишь эти конфигурационные выборы (все уже в плане).
@@ -357,7 +357,7 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 ## Затронутые файлы (абсолютные пути)
 
 **Новые:**
-- `/home/claude/Projects/linorobot2_hardware/firmware_stm32/` — CubeMX-проект + `Makefile` + `.ioc`
+- `/home/claude/Projects/linorobot2_hardware/firmware_stm32/` — hand-written HAL/FreeRTOS проект + `Makefile` (GUI-free, без `.ioc`)
 - `/home/claude/Projects/linorobot2_hardware/firmware_stm32/.../f446re_config.h` — board config (pin-map)
 - `/home/claude/Projects/linorobot2_hardware/.github/workflows/stm32cube.yml` — отдельный CI
 - форк/вендор `I2Cdevlib-Core` с HAL-бэкендом

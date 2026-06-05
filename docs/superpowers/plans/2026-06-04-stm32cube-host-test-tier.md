@@ -15,7 +15,7 @@
 The native STM32Cube port (spec: `docs/STM32CUBE_PORTING_PLAN.md`) is split into a sequence of independently-testable plans. Each later plan is written when its prerequisites/artifacts exist (CubeMX project, pin-map, Renode `.repl`):
 
 1. **Plan 1 — Host test tier + odometry refactor** ← *this document* (Tier A; spec Ф1). No toolchain/board needed.
-2. **Plan 2 — STM32Cube skeleton + libmicroros ABI-smoke** (spec Ф0). CubeMX F446RE project + Makefile + Docker `microros/micro_ros_static_library_builder:jazzy`; link smoke.
+2. **Plan 2 — STM32 skeleton + libmicroros ABI-smoke** (spec Ф0). Hand-written F446RE HAL/FreeRTOS project + Makefile (**GUI-free, no CubeMX**) + Docker `microros/micro_ros_static_library_builder:jazzy`; link smoke.
 3. **Plan 3 — Renode harness + boot/FreeRTOS/`rclc_support_init` smoke** (spec Ф2).
 4. **Plan 4 — micro-ROS UART transport (DMA/IT compile-time switch) + session round-trip in Renode** (spec Ф3).
 5. **Plan 5 — Encoder (TIM encoder mode) + Motor PWM (TIM) native drivers** (spec Ф4).
