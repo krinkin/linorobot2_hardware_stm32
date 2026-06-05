@@ -167,13 +167,18 @@ These bite at *run* time (the firmware links and "boots") and were the Plan-4 bl
 
 ## 8. CI
 
-`.github/workflows/stm32-f446re.yml` runs the same three tiers on every push touching
-`test_host/`, `firmware/lib/`, `firmware_stm32/`, or the root `Makefile`:
-- **host-tests** job → `make test-host`.
-- **stm32-f0-f2** job → `make libmicroros` + `make build-fw` (F0) → `renode-test-action`
-  runs `boot_smoke.robot` (Ф2), Renode pinned to `1.16.1`.
-This is separate from the existing PlatformIO CI (`.github/parse_platformio.py`), which
-only sees `firmware/platformio.ini` envs.
+`.github/workflows/stm32-f446re.yml` runs on every push **and pull request** touching
+`test_host/`, `firmware/lib/`, `firmware_stm32/`, the root `Makefile`, or the workflow itself
+(the Ф6 job additionally is gated to push events only). Three jobs:
+- **host-tests** → `make test-host` (Tier A).
+- **stm32-f0-f2** → `make libmicroros` + `make build-fw` (Tier B) → `renode-test-action` runs
+  `boot_smoke.robot` (Ф2, Renode 1.16.1) → installs Renode-portable + socat → `make control`
+  (Ф4) → `make imu` (Ф5).
+- **stm32-topics** (`needs: stm32-f0-f2`, push-gated, `continue-on-error` until proven stable)
+  → `make libmicroros` + `make build-fw` → `make topics` (Ф6, full base-node round-trip via the
+  Docker micro_ros_agent). This is the only Docker round-trip that runs in CI (Ф3 is local-only).
+This is separate from the existing PlatformIO CI (`.github/parse_platformio.py`), which only
+sees `firmware/platformio.ini` envs.
 
 ## 9. Repo map (what builds what)
 
@@ -185,12 +190,17 @@ firmware_stm32/               # Tier B/C: the GUI-free native firmware
   Makefile                    #   hand-written build (+ print_cflags for the Docker builder)
   STM32F446RETX_FLASH.ld      #   linker script
   Inc/{FreeRTOSConfig,stm32f4xx_hal_conf}.h
-  Src/{main,microros_glue,microros_atomic64}.c
+  Src/{main,microros_glue,microros_atomic64,sys_freertos,lino_hal,stm32_encoder,
+       stm32_motor,stm32_i2c,control_loop,cxx_runtime}.{c,cpp}   # C main + C++ drivers/control
+  Inc/{encoder_math,pwm_timing,imu_math,control_core,lino_hal,stm32_*,control_loop,...}.h
+  config/{config.h,f446re_config.h}       #   board selector + F446RE descriptor tables
   vendor/                     #   pinned submodules: cmsis_device_f4, cmsis_core, HAL, FreeRTOS-Kernel
   micro_ros_stm32cubemx_utils #   pinned submodule (a5b2127); supplies extra_sources + the Docker builder
-  renode/boot_smoke.sh                  # Tier C  (Ф2: firmware transmits the ping)
-  renode/boot_smoke.robot               # Tier C  (Ф2 in CI: scheduler ticked)
+  renode/boot_smoke.{sh,robot}          # Tier C  (Ф2: firmware transmits the ping / scheduler ticked)
+  renode/control_smoke.sh               # Tier C  (Ф4: control loop + injected-encoder->odom)
+  renode/imu_smoke.sh + mpu6050_mock.py # Tier C  (Ф5: MPU6050 over HAL I2C, Python mock slave)
   renode/agent_bridge.sh                # Tier C+ (Ф3: live agent round-trip)
+  renode/topic_roundtrip.sh             # Tier C+ (Ф6: full base-node cmd_vel/odom/imu round-trip)
 docs/STM32CUBE_PORTING_PLAN.md            # the design spec (phases Ф0–Ф7)
 docs/superpowers/plans/2026-06-*-*.md     # the per-phase implementation plans
 ```

@@ -57,7 +57,6 @@ All prior tiers stay green (host doctest, F0 link 108.9 KB no-libstdc++, Ф2/Ф4
 
 ## Reproduce
 ```bash
-source /opt/ros/jazzy/setup.bash
 make test-all        # Tier A + libmicroros + build-fw + Ф2 + Ф4 + Ф5
 make topics          # Ф6 full base-node topic round-trip (docker agent)
 ```

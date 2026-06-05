@@ -61,7 +61,6 @@ configured (PWR_MGMT/GYRO/ACCEL_CONFIG) over the REAL HAL I2C path** against a P
 
 ## Reproduce
 ```bash
-source /opt/ros/jazzy/setup.bash
 make test-host        # Tier A (imu_math + the Plan 1-5 cores)
 make build-fw         # Tier B (clean of libstdc++)
 make imu              # Ф5 (MPU6050 over real HAL I2C via the Python mock)

@@ -12,7 +12,9 @@
 #   make test-all        # everything above, in order
 #
 # Prereqs: git submodules initialised  ->  git submodule update --init --recursive
-#          arm-none-eabi-gcc, GNU make, docker, socat; renode for renode/agent-roundtrip.
+#          arm-none-eabi-gcc/g++, GNU make, docker, socat; renode for renode/control/imu/
+#          agent-roundtrip/topics. NO host ROS install needed (libmicroros is built by a
+#          self-contained Docker image; ros2/the agent run only inside the agent container).
 
 DOCKER_IMG = microros/micro_ros_static_library_builder@sha256:1482f3df56184ecc5d4a9d45ad9be0a17a84a91fca947d07f20d1678b23f6243
 FW = firmware_stm32
@@ -38,7 +40,7 @@ libmicroros:
 	  $(DOCKER_IMG)
 	@test -f $(LIBMICROROS) && echo "libmicroros.a OK"
 
-# --- Tier B: link the firmware (F0) ---
+# --- Tier B: link the firmware (F446RE) ---
 build-fw:
 	@test -f $(LIBMICROROS) || { echo "libmicroros.a missing -> run 'make libmicroros'"; exit 1; }
 	$(MAKE) -C $(FW)

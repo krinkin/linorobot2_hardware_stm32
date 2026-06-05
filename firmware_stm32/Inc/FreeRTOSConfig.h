@@ -1,6 +1,7 @@
 /* FreeRTOS config for STM32F446 (Cortex-M4F). Hand-written, GUI-free.
  * HSI 16 MHz for first bring-up (PLL->180 MHz is a later refinement). FreeRTOS owns
- * SysTick/PendSV/SVC; the HAL timebase is DWT (see main.c) so there is no conflict. */
+ * SysTick/PendSV/SVC; the HAL timebase is backed by the FreeRTOS tick (see main.c
+ * HAL_GetTick) so there is no conflict. */
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 #define configUSE_PREEMPTION 1

@@ -50,7 +50,7 @@ The project lives in a new top-level `firmware_stm32/` (alongside `firmware/`). 
 | `firmware_stm32/Src/microros_posix_stubs.c` | `usleep`→`osDelay` (**REQUIRED**) | Author (Task 5a) |
 | `firmware_stm32/micro_ros_stm32cubemx_utils/` | Vendored utils (submodule @ pinned commit) | Task 3 |
 | `firmware_stm32/.gitignore` | Ignore `build/` + `libmicroros/`, **keep** all hand-written + vendored source | Author (Task 7) |
-| `.github/workflows/stm32-f446re-f0.yml` | Dedicated F0 link-smoke CI (separate from `parse_platformio.py`) | Author (Task 7) |
+| `.github/workflows/stm32-f446re.yml` | Dedicated F0 link-smoke CI (separate from `parse_platformio.py`) | Author (Task 7) |
 
 ---
 
@@ -177,11 +177,13 @@ cp vendor/stm32f4xx_hal_driver/Inc/stm32f4xx_hal_conf_template.h Inc/stm32f4xx_h
 
 - [ ] **Step 5: Write `firmware_stm32/Src/syscalls.c`** — standard newlib stubs so `-specs=nano.specs` links cleanly (`_sbrk` using `end`/`_estack`, plus no-op `_write/_read/_close/_lseek/_fstat/_isatty/_kill/_getpid/_exit`). (Use the well-known ARM newlib `syscalls.c` template; `_sbrk` grows the heap from `end` toward the stack.)
 
-- [ ] **Step 6: Write `firmware_stm32/Src/main.c` platform glue** — `HAL_Init()`, `SystemClock_Config()` (PLL → 180 MHz from HSE-bypass 8 MHz, or stay on HSI for a simpler first bring-up), `MX_GPIO_Init()` + `MX_USART2_UART_Init()` (USART2, **PA2/PA3**, 115200 8N1; `huart2` global), create the FreeRTOS micro-ROS task (Task 5), `vTaskStartScheduler()`. **HAL timebase via DWT** (override `HAL_InitTick`/`HAL_GetTick` to use the DWT cycle counter) so FreeRTOS owns SysTick with no conflict:
+- [ ] **Step 6: Write `firmware_stm32/Src/main.c` platform glue** — `HAL_Init()`, `SystemClock_Config()` (PLL → 180 MHz from HSE-bypass 8 MHz, or stay on HSI for a simpler first bring-up), `MX_GPIO_Init()` + `MX_USART2_UART_Init()` (USART2, **PA2/PA3**, 115200 8N1; `huart2` global), create the FreeRTOS micro-ROS task (Task 5), `vTaskStartScheduler()`. **HAL timebase via the FreeRTOS tick** (override `HAL_InitTick`/`HAL_GetTick`) so FreeRTOS stays the sole SysTick owner with no conflict — and it works in Renode (an earlier DWT-based timebase was abandoned because Renode does not model the DWT cycle counter; see Plan 3):
 ```c
-HAL_StatusTypeDef HAL_InitTick(uint32_t prio){ (void)prio;
-  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; DWT->CYCCNT = 0; DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; return HAL_OK; }
-uint32_t HAL_GetTick(void){ return DWT->CYCCNT / (SystemCoreClock/1000U); }
+HAL_StatusTypeDef HAL_InitTick(uint32_t prio){ (void)prio; return HAL_OK; }
+uint32_t HAL_GetTick(void){
+  if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) return (uint32_t)xTaskGetTickCount();
+  return ++s_boot_ticks;  /* free-running before the scheduler so early HAL timeouts progress */
+}
 ```
 
 - [ ] **Step 7: Write `firmware_stm32/Src/stm32f4xx_it.c`** — the IRQ handlers the app needs: `USART2_IRQHandler(){ HAL_UART_IRQHandler(&huart2); }`, the fault handlers (`HardFault_Handler` etc. — simple `for(;;)`), and the core exceptions. (`SVC/PendSV/SysTick` are owned by FreeRTOS via the `FreeRTOSConfig.h` `#define`s — do NOT also define them here.)
@@ -485,7 +487,7 @@ If the link FAILS, match the signature (empirically characterized 2026-06-04 aga
 
 **Files:**
 - Create: `firmware_stm32/.gitignore`
-- Create: `.github/workflows/stm32-f446re-f0.yml`
+- Create: `.github/workflows/stm32-f446re.yml`
 
 - [ ] **Step 1: `.gitignore`** — keep all hand-written + vendored source; drop build artifacts. Create `firmware_stm32/.gitignore`:
 ```
@@ -500,14 +502,14 @@ git -C firmware_stm32 ls-files | grep -E 'Src/main.c|Makefile|STM32F446RETX_FLAS
 ```
 Expected: lists `Makefile`, the linker script, and `Src/main.c`.
 
-- [ ] **Step 3: CI workflow** (separate from `.github/parse_platformio.py`, which only enumerates `platformio.ini` envs and can't see a Make project). Create `.github/workflows/stm32-f446re-f0.yml`:
+- [ ] **Step 3: CI workflow** (separate from `.github/parse_platformio.py`, which only enumerates `platformio.ini` envs and can't see a Make project). Create `.github/workflows/stm32-f446re.yml`:
 ```yaml
-name: stm32-f446re-microros-f0
+name: stm32-f446re-microros
 on:
   push:
-    paths: ['firmware_stm32/**', '.github/workflows/stm32-f446re-f0.yml']
+    paths: ['firmware_stm32/**', '.github/workflows/stm32-f446re.yml']
   pull_request:
-    paths: ['firmware_stm32/**', '.github/workflows/stm32-f446re-f0.yml']
+    paths: ['firmware_stm32/**', '.github/workflows/stm32-f446re.yml']
 jobs:
   f0-link-smoke:
     runs-on: ubuntu-latest          # amd64 — matches pinned image sub-digest 392246e5
@@ -539,7 +541,7 @@ jobs:
 ```
 - [ ] **Step 4: Commit**
 ```bash
-git add firmware_stm32/.gitignore .github/workflows/stm32-f446re-f0.yml
+git add firmware_stm32/.gitignore .github/workflows/stm32-f446re.yml
 git commit -m "ci(stm32): F0 link-smoke workflow + project gitignore (GUI-free Make project)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"

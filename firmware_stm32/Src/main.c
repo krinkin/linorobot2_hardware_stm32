@@ -1,8 +1,8 @@
-/* GUI-free F446RE micro-ROS firmware skeleton (hand-written; no CubeMX).
- * HAL_Init (HSI) + USART2 (PA2/PA3) + a FreeRTOS task that brings up micro-ROS.
- * HAL timebase is the DWT cycle counter so FreeRTOS owns SysTick with no conflict.
- * NOTE (Plan 4): Renode does not model DWT; for the agent round-trip move the HAL
- * timebase to a TIM / the FreeRTOS tick so HAL_UART timeouts fire. */
+/* GUI-free F446RE micro-ROS firmware (hand-written; no CubeMX).
+ * HAL_Init (HSI) + USART2 (PA2/PA3) + two FreeRTOS tasks: uros_task (micro-ROS base node)
+ * and control_task (50 Hz encoder/PID/motor/odom/IMU loop). The HAL timebase is backed by
+ * the FreeRTOS tick (SysTick), so FreeRTOS stays the sole SysTick owner with no conflict —
+ * and it works in Renode, which does not model the DWT cycle counter. */
 #include "stm32f4xx_hal.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -217,7 +217,8 @@ static void uros_task(void* arg) {
 /* Control task: brings up the encoder/motor HAL and runs the 50 Hz control loop
  * (PID over encoder feedback -> motor PWM, odometry, 200 ms deadman). Runs on its
  * own FreeRTOS task, independent of the micro-ROS agent, so the base is governed
- * even when comms are down. /cmd_vel + /odom topic bridging is Plan 7. */
+ * even when comms are down. uros_task bridges /cmd_vel into control_set_cmd and
+ * publishes /odom/unfiltered + /imu/data_raw from the snapshot surface. */
 static void control_task(void* arg) {
     (void)arg;
     control_loop_init();

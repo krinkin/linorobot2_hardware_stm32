@@ -1,5 +1,5 @@
-// Make newlib's heap thread-safe under FreeRTOS. Plan 5 adds a second task
-// (control_task) that allocates via C++ `new` -> malloc, while uros_task allocates
+// Make newlib's heap thread-safe under FreeRTOS. There are two tasks: control_task
+// allocates via C++ `new` -> malloc, while uros_task allocates
 // via the rcl default allocator -> malloc. newlib's malloc is NOT reentrant unless
 // __malloc_lock/__malloc_unlock are provided, so without these two tasks could
 // corrupt the heap if one preempts the other mid-allocation. Suspending the

@@ -84,7 +84,6 @@ The agent exists only inside a Docker image, and a container **cannot open a hos
 ## Reproduce
 
 ```bash
-source /opt/ros/jazzy/setup.bash
 make build-fw          # ELF with the wait-for-agent loop + valid priority
 make agent-roundtrip   # Renode + socat + Docker agent; expect "Ф3 PASS"
 make renode            # upgraded Ф2: expect USART2 emits the ping
@@ -93,4 +92,5 @@ make renode            # upgraded Ф2: expect USART2 emits the ping
 ## Carry-forward
 - CI runs Ф2 (`boot_smoke.robot` via renode-test-action). Ф3 needs Docker + socat on the runner — left as an opt-in/local gate for now (heavier: builds the agent image, runs Renode + a container).
 - The blocking HAL-UART transport is fine for the round-trip; switching to the utils' IT/DMA transport is a performance item for the full control loop (Plan 7), not a correctness blocker.
-- Next: Plan 5 (encoder via TIM + PWM motor), Plan 6 (I2Cdev→HAL + IMU), Plan 7 (full loop + CI).
+- Plans 5–7 (encoder/PWM control, IMU over HAL I2C, full topic loop + CI) are now complete (tags
+  `stm32cube-p5-control`/`p6-imu`/`p7-topics`); the only remaining phase is Ф7 on-hardware NUCLEO-F446RE bring-up.

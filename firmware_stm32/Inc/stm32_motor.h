@@ -5,8 +5,8 @@
 // are LOGICAL ids indexing the board's PWM_DESCRIPTORS / DIR_DESCRIPTORS; a
 // negative id marks an unused wheel (no-op). Selected via USE_*_MOTOR_DRIVER.
 //
-// Plan 5 implements Generic2 only; Generic1/BTS7960/ESC are added when a board
-// selects them (their USE_* branch is simply not compiled until then).
+// Only Generic2 is implemented in the native port today; Generic1/BTS7960/ESC are added
+// when a board selects them (their USE_* branch is simply not compiled until then).
 #ifndef STM32_MOTOR_H
 #define STM32_MOTOR_H
 
@@ -43,11 +43,11 @@ private:
 #if defined(USE_GENERIC_2_IN_MOTOR_DRIVER)
   #define Motor Generic2
 #elif defined(USE_GENERIC_1_IN_MOTOR_DRIVER)
-  #error "Generic1 not yet implemented in the native STM32 port (Plan 5 ships Generic2)."
+  #error "Generic1 not yet implemented in the native STM32 port (only Generic2 is available)."
 #elif defined(USE_BTS7960_MOTOR_DRIVER)
-  #error "BTS7960 not yet implemented in the native STM32 port (Plan 5 ships Generic2)."
+  #error "BTS7960 not yet implemented in the native STM32 port (only Generic2 is available)."
 #elif defined(USE_ESC_MOTOR_DRIVER)
-  #error "ESC not yet implemented in the native STM32 port (Plan 5 ships Generic2)."
+  #error "ESC not yet implemented in the native STM32 port (only Generic2 is available)."
 #else
   #error "No motor driver selected: define USE_GENERIC_2_IN_MOTOR_DRIVER."
 #endif

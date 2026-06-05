@@ -1,6 +1,6 @@
-// Native STM32 magnetometer drivers (replaces the Arduino-bound default_mag.h). Plan 6
-// ships only the verbatim FakeMAG fallback; real magnetometers (HMC5883L / AK8963 /
-// QMC5883L) are added later behind the same USE_*_MAG selector (mirror of mag.h).
+// Native STM32 magnetometer drivers (replaces the Arduino-bound default_mag.h). The native
+// port currently ships only the verbatim FakeMAG fallback; real magnetometers (HMC5883L /
+// AK8963 / QMC5883L) are added later behind the same USE_*_MAG selector (mirror of mag.h).
 #ifndef STM32_MAG_H
 #define STM32_MAG_H
 

@@ -75,7 +75,6 @@ both encoder timers frozen — a load-bearing end-to-end check).
 
 ## Reproduce
 ```bash
-source /opt/ros/jazzy/setup.bash
 make test-host       # Tier A (incl. encoder_math/pwm_timing/motor-dispatch/control-core)
 make build-fw        # Tier B link (asserts clean of libstdc++)
 make renode          # Ф2

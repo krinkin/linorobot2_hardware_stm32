@@ -31,7 +31,7 @@ Plan 3 of 7. Plans 1 (host tests) and 2 (skeleton + libmicroros ABI/atomics — 
 | `firmware_stm32/renode/f446.repl` | Renode platform (extends bundled `stm32f4.repl`) | Author (Task 1) |
 | `firmware_stm32/renode/boot_smoke.resc` | Headless boot script (validated pattern) | Author (Task 1) |
 | `firmware_stm32/renode/boot_smoke.robot` | Robot Framework assertions | Author (Task 2) |
-| `.github/workflows/stm32-f446re-f0.yml` | Extend with a Renode boot-smoke job | Modify (Task 4) |
+| `.github/workflows/stm32-f446re.yml` | Extend with a Renode boot-smoke job | Modify (Task 4) |
 
 ---
 
@@ -158,7 +158,7 @@ Expected (PASS): `rclc_support_init` runs, retries session-create against the (a
 ### Task 4: CI — Renode boot-smoke job
 
 **Files:**
-- Modify: `.github/workflows/stm32-f446re-f0.yml`
+- Modify: `.github/workflows/stm32-f446re.yml`
 
 - [ ] **Step 1: Append a boot-smoke job** after the F0 link job (it consumes the linked ELF):
 ```yaml
@@ -179,7 +179,7 @@ Expected (PASS): `rclc_support_init` runs, retries session-create against the (a
 
 - [ ] **Step 2: Commit**
 ```bash
-git add .github/workflows/stm32-f446re-f0.yml
+git add .github/workflows/stm32-f446re.yml
 git commit -m "ci(stm32): add Renode boot-smoke job (pinned renode 1.16.1)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"

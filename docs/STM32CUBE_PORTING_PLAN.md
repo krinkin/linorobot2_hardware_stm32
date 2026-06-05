@@ -1,5 +1,11 @@
 # План порта linorobot2_hardware на нативный STM32Cube (HAL) — надёжный план
 
+> **СТАТУС (2026-06-05): фазы Ф0–Ф6 РЕАЛИЗОВАНЫ и зелёные в эмуляции** (теги `stm32cube-p1-host-test-tier`
+> … `stm32cube-p7-topics`, ветка `stm32-native-firmware`). `firmware_stm32/` собрана; `make test-all`
+> проходит (host + libmicroros + build-fw + Ф2 + Ф4 + Ф5), Ф3/Ф6 проверены через живой агент. **Единственная
+> оставшаяся фаза — Ф7: поднятие на реальной NUCLEO-F446RE.** Ниже — исходный design-spec (историческая
+> основа); конкретика по фазам — в `docs/superpowers/plans/2026-06-0*-stm32cube-*.md` и `docs/TESTING.md`.
+
 > Это **отдельный** план для нативного пути STM32Cube (ST HAL/LL + CMSIS, без Arduino-прослойки).
 > Arduino/STM32duino-вариант (minimal-diff) описан в соседнем `docs/STM32_PORTING_PLAN.md` и здесь
 > **не** заменяется. Этот документ — design-spec; детальный план реализации генерируется отдельно
@@ -118,7 +124,7 @@ Compile-time HW-абстракция репозитория (`USE_*`-макро�
 | Платформенный клей | `firmware/src/firmware.ino` (setup/loop, Serial, millis…) | 🪡 shim | → HAL/FreeRTOS-задача (§5.5) |
 | Board config | `firmware_stm32/.../f446re_config.h` | 🆕 new | pin-map → конкретные `TIMx_CHy` + AF |
 | Сборка | `firmware_stm32/Makefile` (hand-written, GUI-free) | 🆕 new | Makefile-flow micro_ros_stm32cubemx_utils |
-| CI | `.github/workflows/stm32cube.yml` | 🆕 new | отдельный workflow (§7) |
+| CI | `.github/workflows/stm32-f446re.yml` | 🆕 new | отдельный workflow (§7) |
 
 **Вне области (не выбрано пользователем):** `QMI8658` и `default_mag.h`/QMC5883L (прямой Wire) — отдельные
 Wire→HAL переписывания; не делаем, пока IMU = MPU6050/9250.
@@ -162,7 +168,8 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
   полностью BSD-3/Apache-2.0 (см. §11).
 
 ### 5.5 Платформенный клей (шим)
-- `millis()` → `HAL_GetTick()`; `micros()` → DWT cycle counter; `delay()` → `HAL_Delay()`;
+- `millis()` → FreeRTOS tick (`HAL_GetTick`/`xTaskGetTickCount`); `micros()` → free-running 1 MHz **TIM5**
+  counter (NOT DWT — Renode не моделирует DWT cycle counter); `delay()` → `vTaskDelay`;
   `pinMode/digitalWrite/digitalRead` → `HAL_GPIO_*`; `Serial` (логи) → `HAL_UART` или ITM/semihosting.
 - `setup()/loop()` → инициализация в `main()` + rclc-executor в FreeRTOS-задаче (стек ≥ 24 КБ).
 
@@ -218,7 +225,7 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 
 ## 7. CI
 
-Отдельный `.github/workflows/stm32cube.yml` (не трогает `parse_platformio.py`, существующая матрица не
+Отдельный `.github/workflows/stm32-f446re.yml` (не трогает `parse_platformio.py`, существующая матрица не
 ломается):
 1. `docker run microros/micro_ros_static_library_builder:jazzy` → `libmicroros.a` (неинтерактивно: либо
    pre-seed stdin, либо IDE/Make-вариант; upstream-CI там нет — пишем сами).
@@ -317,7 +324,9 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
   (micro-ROS), без коллизий по alternate-function. Сверить по datasheet.
 - Привод (2 vs 4 колеса) — задаёт бюджет таймеров; F446RE имеет TIM1/2/3/4/5/8 — достаточно для 4 колёс,
   но pin-map требует валидации.
-- Спайк host-agent-over-Renode-pty (нет публичного end-to-end примера) — или сразу in-sim hub.
+- ~~Спайк host-agent-over-Renode-pty (нет публичного end-to-end примера) — или сразу in-sim hub.~~
+  **РЕШЕНО:** живой `micro_ros_agent` ↔ прошивка работает через Renode RAW-socket ↔ socat ↔ агент в одном
+  `--network host` контейнере (`firmware_stm32/renode/agent_bridge.sh`, `topic_roundtrip.sh`; Ф3/Ф6 зелёные).
 
 ---
 
@@ -359,7 +368,7 @@ Wire→HAL переписывания; не делаем, пока IMU = MPU6050
 **Новые:**
 - `/home/claude/Projects/linorobot2_hardware/firmware_stm32/` — hand-written HAL/FreeRTOS проект + `Makefile` (GUI-free, без `.ioc`)
 - `/home/claude/Projects/linorobot2_hardware/firmware_stm32/.../f446re_config.h` — board config (pin-map)
-- `/home/claude/Projects/linorobot2_hardware/.github/workflows/stm32cube.yml` — отдельный CI
+- `/home/claude/Projects/linorobot2_hardware/.github/workflows/stm32-f446re.yml` — отдельный CI
 - форк/вендор `I2Cdevlib-Core` с HAL-бэкендом
 - host-тесты (PlatformIO-`native`/GoogleTest) для kinematics/pid/odometry-интегратора
 - Renode `.repl` + Robot-тесты

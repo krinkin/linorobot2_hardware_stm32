@@ -1,8 +1,8 @@
 /* POSIX time/sleep glue (FreeRTOS-backed) + a HAL-UART micro-ROS custom transport.
  * clock_gettime: required by rcutils/microxrcedds time; FreeRTOS-tick based (advances).
  * usleep: required by rclc_sleep_ms.
- * transport: blocking HAL UART on huart2 (USART2). For the agent round-trip (Plan 4)
- * switch to the utils' it_transport.c/dma_transport.c + a FreeRTOS HAL timebase. */
+ * transport: blocking HAL UART on huart2 (USART2). The live agent round-trip runs on this
+ * blocking transport; the utils' IT/DMA transports remain an optional future optimization. */
 #include <time.h>
 #include <unistd.h>
 #include "FreeRTOS.h"

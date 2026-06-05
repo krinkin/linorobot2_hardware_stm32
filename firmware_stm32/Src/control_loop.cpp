@@ -108,7 +108,7 @@ extern "C" void control_loop_tick(void)
     uint32_t now = lino_millis();
 
     // Snapshot the shared command as one atomic tuple (control_set_cmd, called from the
-    // micro-ROS task in Plan 7, writes all four fields). Apply the deadman to the snapshot.
+    // micro-ROS task's twistCallback, writes all four fields). Apply the deadman to the snapshot.
     float lx, ly, lwz; uint32_t last_cmd;
     taskENTER_CRITICAL();
     lx = cmd_x; ly = cmd_y; lwz = cmd_wz; last_cmd = prev_cmd_ms;
@@ -125,7 +125,7 @@ extern "C" void control_loop_tick(void)
 
     Kinematics::velocities v = core->step(lx, ly, lwz, rpm, dt);
 
-    // Publish the pose + body-velocity as ONE coherent snapshot for control_get_odom (Plan 7).
+    // Publish the pose + body-velocity as ONE coherent snapshot read by control_get_odom.
     // odom.{x,y,heading} were just fully updated by core->step(); capturing them together with
     // the velocities under one critical section is what makes the published 6-tuple consistent
     // (odom.update() itself is not in a critical section, so the reader must not read it live).
@@ -134,7 +134,7 @@ extern "C" void control_loop_tick(void)
     last_vx = v.linear_x; last_vy = v.linear_y; last_wz = v.angular_z;
     taskEXIT_CRITICAL();
 
-    // Read the IMU (Plan 6 read path; publishing /imu/data_raw is Plan 7). Gated on a
+    // Read the IMU into g_imu_snap; main.c's publisher emits /imu/data_raw from it. Gated on a
     // successful init so a missing/faulted device never injects blocking I2C timeouts into
     // the 50 Hz loop every tick. Two ~0.6 ms bursts when present, well within the 20 ms budget.
     if (g_dbg_imu_ok) {
