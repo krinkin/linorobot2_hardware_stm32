@@ -24,6 +24,8 @@ Plan 2 of 7 for the native STM32 port (see `docs/STM32CUBE_PORTING_PLAN.md`). Pl
 
 **Empirically validated (2026-06-04/05).** The real `libmicroros.a` was built via the official jazzy Docker flow (from a hand-written Makefile) and inspected with the Cortex-M4F toolchain: **float-ABI = PASS** (all 2014 members hard-float `Tag_ABI_VFP_args: VFP registers` — the Route-A VFP wall does NOT occur with this flow), and **64-bit atomics = needs a shim** (`rcl` references `__atomic_*_8` that `arm-none-eabi` cannot satisfy on M4). A PRIMASK critical-section shim (Task 5a) was proven to make the realistic micro-ROS symbol set link cleanly. F0 closed end-to-end on a **real F446 ELF**: hand linker + CMSIS startup + shim + the official `libmicroros.a` → clean link, 73.7 KB Flash / 22.6 KB RAM, hard-float; control proof: the identical link **without** the shim fails on `__atomic_compare_exchange_8`. So F0 is **two** gates — VFP **and** atomics/POSIX — reflected in Task 5a and the Task 6 FAIL signatures. None of this used a GUI.
 
+**Update (2026-06-05): the FULL combined GUI-free firmware** (CMSIS startup + hand linker + HAL `HAL_Init`/RCC/GPIO/USART2 + FreeRTOS + micro-ROS `rclc_support_init`/node + HAL-UART transport + atomic shim + `clock_gettime`/`usleep` glue) was assembled by hand and **links — 49 KB Flash / 73.5 KB RAM, hard-float** — and **boots in Renode** (FreeRTOS scheduler runs, `rclc_support_init` executes, no HardFault; see Plan 3). The native port is thus proven GUI-free **end-to-end** (F0 link + F2 boot) on this machine — zero CubeMX.
+
 ---
 
 ## File Structure

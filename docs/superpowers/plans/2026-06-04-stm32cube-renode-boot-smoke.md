@@ -12,6 +12,8 @@
 
 **Validated on 2026-06-04 (this is not speculative):** Renode 1.16.1 portable installed; the bundled `platforms/cpus/stm32f4.repl` (Cortex-M4, `flash@0x08000000`, `sram@0x20000000`) booted a real F446-class micro-ROS-linked ELF cleanly — `emulation RunFor "0.1"` → 20 288 instructions, `PC` settled inside `main` (NOT the fault handler at `Default_Handler`/`HardFault_Handler`), `IsHalted=False`. The headless `.resc` pattern below is the one that worked.
 
+**Update (2026-06-05 — Ф2 on the REAL combined GUI-free firmware):** the full hand-written firmware (CMSIS startup + hand linker + HAL `HAL_Init`/USART2 + FreeRTOS + micro-ROS `rclc_support_init`/node + HAL-UART transport + atomic shim + glue) was booted in `stm32f4.repl` (USART2 is modeled, `UART.STM32_UART @ 0x40004400`): **71 469 instructions, FreeRTOS scheduler running, `uros_task` executed `rclc_support_init`, PC in the idle task — NOT in `HardFault_Handler` → the Ф2 no-fault gate PASSED.** **Caveat (now Task 3):** Renode does **not** model the DWT cycle counter (`0xE0001000/4` = non-existing peripheral), so a `HAL_GetTick`-via-DWT timebase is frozen there and UART timeouts won't fire — back the HAL timebase with the **FreeRTOS SysTick/tick** (or a TIM), not DWT, before the Plan-4 agent round-trip.
+
 ---
 
 ## Where this plan sits
