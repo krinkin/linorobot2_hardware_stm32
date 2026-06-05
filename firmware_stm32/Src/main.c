@@ -20,15 +20,16 @@ bool cubemx_transport_close(struct uxrCustomTransport*);
 size_t cubemx_transport_write(struct uxrCustomTransport*, const uint8_t*, size_t, uint8_t*);
 size_t cubemx_transport_read(struct uxrCustomTransport*, uint8_t*, size_t, int, uint8_t*);
 
-/* HAL timebase via DWT (no SysTick conflict with FreeRTOS) */
-HAL_StatusTypeDef HAL_InitTick(uint32_t prio) {
-    (void)prio;
-    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-    DWT->CYCCNT = 0;
-    DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
-    return HAL_OK;
+/* HAL timebase backed by the FreeRTOS tick (SysTick). Works in Renode (which does NOT
+ * model the DWT cycle counter) and on hardware, and keeps FreeRTOS as the sole SysTick
+ * owner. Before the scheduler starts, a free-running counter keeps any early HAL timeout
+ * progressing (configTICK_RATE_HZ = 1000 -> tick == ms). */
+static volatile uint32_t s_boot_ticks;
+HAL_StatusTypeDef HAL_InitTick(uint32_t prio) { (void)prio; return HAL_OK; }
+uint32_t HAL_GetTick(void) {
+    if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) return (uint32_t)xTaskGetTickCount();
+    return ++s_boot_ticks;
 }
-uint32_t HAL_GetTick(void) { return DWT->CYCCNT / (SystemCoreClock / 1000U); }
 
 void HAL_UART_MspInit(UART_HandleTypeDef* h) {
     if (h->Instance == USART2) {
