@@ -29,7 +29,7 @@ C_INCLUDES = -IInc -Iconfig -I$(DEV)/Include -I$(CORE) -I$(HAL)/Inc \
              -I$(RTOS)/include -I$(RTOS)/portable/GCC/ARM_CM4F \
              -I$(UROS)/microros_include \
              -I$(PORTLIB)/kinematics -I$(PORTLIB)/pid \
-             -I$(PORTLIB)/odom_integrator -I$(PORTLIB)/motor
+             -I$(PORTLIB)/odom_integrator -I$(PORTLIB)/motor -I$(PORTLIB)/imu
 
 C_SOURCES = \
   Src/main.c Src/microros_glue.c Src/microros_atomic64.c Src/sys_freertos.c \
@@ -40,12 +40,13 @@ C_SOURCES = \
   $(HAL)/Src/stm32f4xx_hal_flash.c $(HAL)/Src/stm32f4xx_hal_flash_ex.c \
   $(HAL)/Src/stm32f4xx_hal_dma.c $(HAL)/Src/stm32f4xx_hal_uart.c \
   $(HAL)/Src/stm32f4xx_hal_tim.c $(HAL)/Src/stm32f4xx_hal_tim_ex.c \
+  $(HAL)/Src/stm32f4xx_hal_i2c.c \
   $(RTOS)/tasks.c $(RTOS)/queue.c $(RTOS)/list.c \
   $(RTOS)/portable/GCC/ARM_CM4F/port.c $(RTOS)/portable/MemMang/heap_4.c
 
 # C++ translation units: the native drivers + control loop + reused portable math.
 CXX_SOURCES = \
-  Src/control_loop.cpp Src/stm32_encoder.cpp Src/stm32_motor.cpp \
+  Src/control_loop.cpp Src/stm32_encoder.cpp Src/stm32_motor.cpp Src/stm32_i2c.cpp \
   Src/lino_hal.cpp Src/cxx_runtime.cpp \
   $(PORTLIB)/kinematics/kinematics.cpp $(PORTLIB)/pid/pid.cpp
 

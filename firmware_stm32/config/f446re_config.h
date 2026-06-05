@@ -72,6 +72,13 @@
 #define MOTOR4_IN_A -1
 #define MOTOR4_IN_B -1
 
+// ---- IMU / MAG selection (mirrors firmware/lib/imu/imu.h + mag.h) ----
+// USE_MPU6050_IMU -> stm32_imu.h: #define IMU Mpu6050Imu; AND imu_interface.h getData()
+// skips the host gyro-cal subtraction (matching the Arduino chip-calibrated path).
+// No USE_*_MAG -> stm32_mag.h falls through to FakeMAG (/imu/mag never published).
+#define USE_MPU6050_IMU
+#define MPU6050_I2C_ADDR 0x68     // 7-bit; AD0=GND (0x69 if AD0=HIGH)
+
 // ---- STM32 hardware binding (the only F446-specific constants) ----
 // (Timer kernel clocks are derived per-timer at runtime via lino_tim_clk_hz(), so there is
 //  no board-wide TIMER_CLOCK_HZ to get wrong across the APB1/APB2 domains.)
@@ -100,5 +107,10 @@ static const GpioDesc DIR_DESCRIPTORS[] __attribute__((unused)) = {
     /* 0 */ { GPIOC, GPIO_PIN_0 }, /* 1 */ { GPIOC, GPIO_PIN_1 },
     /* 2 */ { GPIOC, GPIO_PIN_2 }, /* 3 */ { GPIOC, GPIO_PIN_3 },
 };
+
+// IMU I2C bus: I2C1 on PB8(SCL)/PB9(SDA) AF4 (Nucleo D15/D14), 100 kHz. Collision-free vs
+// the encoder/PWM/dir/USART2 pins above. (PB6/PB7 are also I2C1-AF4 but used by TIM4.)
+static const I2cDesc IMU_I2C_DESC __attribute__((unused)) =
+    { I2C1, GPIO_AF4_I2C1, GPIOB, GPIO_PIN_8, GPIOB, GPIO_PIN_9, 100000 };
 
 #endif // F446RE_CONFIG_H

@@ -11,6 +11,16 @@
 #ifndef PI
 #define PI 3.1415926535897932384626433832795
 #endif
+#ifndef DEG_TO_RAD
+#define DEG_TO_RAD 0.017453292519943295
+#endif
+
+#ifdef __cplusplus
+// Arduino delay() for the reused IMU code (calibrateGyro). Defined in lino_hal.cpp
+// (FreeRTOS vTaskDelay); kept as a bare declaration here so the math TUs that include
+// Arduino.h but never call delay() don't pull in FreeRTOS.
+void delay(uint32_t ms);
+#endif
 
 // Arduino's constrain is a macro that works with mixed float/double args
 // (pid.cpp calls constrain(double, float, float)); keep it a macro.

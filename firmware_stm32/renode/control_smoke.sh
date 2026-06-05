@@ -77,7 +77,7 @@ echo "injected-enc : odom_x (frozen encoders) $ODXB --inject M1 CNT ramp--> $ODX
 FAIL=0
 nz "$XTICK"          || { echo "  ✗ scheduler never ticked";   FAIL=1; }
 nz "$TICKS"          || { echo "  ✗ control loop never ran";   FAIL=1; }
-[ -n "$PC" ] && [ "$PC" != "$FAULT" ] || { echo "  ✗ CPU in HardFault"; FAIL=1; }
+[ -n "$PC" ] && [ $((PC)) -ne $((FAULT)) ] || { echo "  ✗ CPU in HardFault"; FAIL=1; }   # numeric (case/zero-pad safe)
 [ -n "$ODXB" ] && [ -n "$ODXA" ] && [ "$ODXB" != "$ODXA" ] \
     || { echo "  ✗ injected encoder count did NOT move odometry (CNT->getRPM->odom not wired)"; FAIL=1; }
 

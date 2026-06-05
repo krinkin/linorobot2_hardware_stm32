@@ -6,6 +6,7 @@
 #   make build-fw     # link the F446RE firmware (needs arm-none-eabi-gcc + libmicroros)
 #   make renode          # Renode boot smoke (Ф2): firmware boots + transmits the ping (needs renode, socat)
 #   make control         # Ф4: encoder/PWM control loop smoke + injected-encoder->odom (needs renode)
+#   make imu             # Ф5: MPU6050 read over real HAL I2C via a Python mock slave (needs renode)
 #   make agent-roundtrip # Ф3: live micro_ros_agent <-> firmware XRCE session in emulation (needs renode, docker, socat)
 #   make test-all        # everything above, in order
 #
@@ -16,7 +17,7 @@ DOCKER_IMG = microros/micro_ros_static_library_builder@sha256:1482f3df56184ecc5d
 FW = firmware_stm32
 LIBMICROROS = $(FW)/micro_ros_stm32cubemx_utils/microros_static_library/libmicroros/libmicroros.a
 
-.PHONY: help test-host libmicroros build-fw renode control agent-roundtrip test-all clean submodules
+.PHONY: help test-host libmicroros build-fw renode control imu agent-roundtrip test-all clean submodules
 
 help:
 	@grep -E '^#   make ' $(MAKEFILE_LIST) | sed 's/^#   /  /'
@@ -49,12 +50,16 @@ renode:
 control:
 	bash $(FW)/renode/control_smoke.sh $(FW)/build/firmware_stm32.elf
 
+# --- Tier C (Ф5): MPU6050 IMU read over real HAL I2C (Python mock slave in Renode) ---
+imu:
+	bash $(FW)/renode/imu_smoke.sh $(FW)/build/firmware_stm32.elf
+
 # --- Tier C+: live agent round-trip (Ф3) — real micro_ros_agent <-> firmware in emulation ---
 agent-roundtrip:
 	bash $(FW)/renode/agent_bridge.sh $(FW)/build/firmware_stm32.elf
 
 # --- everything ---
-test-all: test-host libmicroros build-fw renode control
+test-all: test-host libmicroros build-fw renode control imu
 	@echo "================ ALL TIERS GREEN ================"
 
 clean:

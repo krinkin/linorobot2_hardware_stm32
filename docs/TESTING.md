@@ -14,6 +14,7 @@ run them bottom-up; a failure in a lower tier explains failures above it.
 | **B — firmware F0 link** | the real F446 firmware **links** micro-ROS (float-ABI + 64-bit atomics OK) | `arm-none-eabi-gcc`, `docker` | ~1 min (lib) + seconds |
 | **C — Renode boot (Ф2)** | the firmware **comes alive**: FreeRTOS scheduler ticks, `uros_task` runs, and it **transmits the micro-ROS ping** on USART2 | `renode`, `socat` | ~1 min |
 | **C — control loop (Ф4)** | the **encoder/PWM control loop** runs at 50 Hz and an **injected encoder count moves odometry** (CNT→getRPM→odom, frozen-timer load-bearing) | `renode` | ~1 min |
+| **C — IMU (Ф5)** | the firmware **reads an MPU6050 over the real HAL I2C path** (WHO_AM_I + config) against a Python mock slave | `renode` | ~1 min |
 | **C+ — agent round-trip (Ф3)** | a real `micro_ros_agent` establishes a **live XRCE session** with the emulated firmware (node `stm32_node`) | `renode`, `docker`, `socat` | ~1 min |
 
 Why split this way: Tier A runs anywhere with zero embedded toolchain (fast TDD on the
@@ -47,6 +48,7 @@ make libmicroros # build libmicroros.a (once; cached afterwards)
 make build-fw    # Tier B (link firmware)  -> firmware_stm32/build/firmware_stm32.elf
 make renode      # Tier C  (Ф2 boot smoke — firmware transmits the ping)
 make control     # Tier C  (Ф4 — encoder/PWM control loop + injected-encoder->odom)
+make imu         # Tier C  (Ф5 — MPU6050 read over real HAL I2C via a Python mock slave)
 make agent-roundtrip   # Tier C+ (Ф3 — live micro_ros_agent <-> firmware XRCE session)
 ```
 
@@ -196,6 +198,6 @@ docs/superpowers/plans/2026-06-*-*.md     # the per-phase implementation plans
 The port is a 7-plan sequence across phases Ф0–Ф7 (see `docs/STM32CUBE_PORTING_PLAN.md` §8):
 Ф1 host tests (Plan 1, **done**) · Ф0 link (Plan 2, **done**) · Ф2 boot (Plan 3, **done**) ·
 Ф3 transport+agent (Plan 4, **done** — live round-trip in emulation) · Ф4 encoder/PWM (Plan 5,
-**done** — TIM encoder + PWM motor + 50 Hz control loop) · Ф5 IMU (Plan 6, next) · Ф6 full loop+CI
-(Plan 7) · Ф7 hardware. Tiers A/B/C/C+ above correspond to Ф1/Ф0/Ф2+Ф4/Ф3 — the emulation-provable
-foundation.
+**done** — TIM encoder + PWM motor + 50 Hz control loop) · Ф5 IMU (Plan 6, **done** — MPU6050 over HAL
+I2C) · Ф6 full loop+CI (Plan 7, next) · Ф7 hardware. Tiers A/B/C/C+ above correspond to
+Ф1/Ф0/Ф2+Ф4+Ф5/Ф3 — the emulation-provable foundation.

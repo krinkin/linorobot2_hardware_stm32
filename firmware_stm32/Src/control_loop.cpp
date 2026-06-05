@@ -5,9 +5,12 @@
 // main.c), independent of the micro-ROS agent, so the motors are governed (and the
 // deadman brakes) even when comms are down. The actual math is the host-tested
 // ControlCore; HAL only appears via the Encoder/Motor adapters.
-#include "config.h"            // board macros + USE_GENERIC_2... + descriptor tables
+#include "config.h"            // board macros + USE_GENERIC_2... + USE_MPU6050_IMU + descriptor tables
 #include "stm32_encoder.h"
 #include "stm32_motor.h"       // defines `Motor` from USE_*_MOTOR_DRIVER
+#include "stm32_i2c.h"
+#include "stm32_imu.h"         // defines `IMU`  from USE_*_IMU
+#include "stm32_mag.h"         // defines `MAG`  from USE_*_MAG
 #include "control_core.h"
 #include "control_loop.h"
 #include "lino_hal.h"
@@ -22,6 +25,9 @@ PID*           pid_[4];
 Kinematics*    kin;
 OdomIntegrator odom;
 ControlCore*   core;
+I2cBus*        i2c;
+IMU*           imu;
+MAG*           mag;
 
 volatile float    cmd_x = 0, cmd_y = 0, cmd_wz = 0;
 volatile uint32_t prev_cmd_ms = 0, prev_odom_ms = 0;
@@ -38,6 +44,11 @@ volatile float    g_dbg_odom_x       = 0;
 volatile float    g_dbg_odom_y       = 0;
 volatile float    g_dbg_odom_heading = 0;
 volatile uint32_t g_dbg_ticks        = 0;
+volatile uint32_t g_dbg_imu_ok        = 0;   // 1 once imu->init() succeeded (WHO_AM_I over real I2C)
+volatile uint32_t g_dbg_i2c_init_ok   = 0;   // 1 if HAL_I2C_Init succeeded (distinct from a WHO_AM_I mismatch)
+volatile uint32_t g_dbg_imu_read_ok   = 0;   // latest per-tick IMU register read succeeded (staleness signal)
+volatile int32_t  g_dbg_accel_z_milli = 0;   // linear_acceleration.z * 1000 (m/s^2)
+volatile int32_t  g_dbg_gyro_z_milli  = 0;   // angular_velocity.z   * 1000 (rad/s)
 }
 
 extern "C" void control_loop_init(void)
@@ -65,6 +76,21 @@ extern "C" void control_loop_init(void)
 
     core = new ControlCore(*kin, odom, pid_[0], pid_[1], pid_[2], pid_[3],
                            mot[0], mot[1], mot[2], mot[3]);
+
+    // IMU + MAG. The real MPU6050 needs the I2C bus; FakeIMU/FakeMAG need nothing.
+    // init() runs WHO_AM_I + wake (and ~2 s gyro calibration); blocks this task at startup
+    // only — no /cmd_vel yet, deadman holds the base stopped.
+#ifdef USE_FAKE_IMU
+    imu = new IMU();
+    g_dbg_i2c_init_ok = 1u;   // no bus
+#else
+    i2c = new I2cBus(IMU_I2C_DESC);
+    g_dbg_i2c_init_ok = i2c->init() ? 1u : 0u;
+    imu = new IMU(i2c, MPU6050_I2C_ADDR);
+#endif
+    mag = new MAG();
+    g_dbg_imu_ok = imu->init() ? 1u : 0u;
+    mag->init();
 
     prev_cmd_ms = prev_odom_ms = lino_millis();
     cmd_x = cmd_y = cmd_wz = 0;
@@ -96,6 +122,16 @@ extern "C" void control_loop_tick(void)
     taskENTER_CRITICAL();
     last_vx = v.linear_x; last_vy = v.linear_y; last_wz = v.angular_z;
     taskEXIT_CRITICAL();
+
+    // Read the IMU (Plan 6 read path; publishing /imu/data_raw is Plan 7). Gated on a
+    // successful init so a missing/faulted device never injects blocking I2C timeouts into
+    // the 50 Hz loop every tick. Two ~0.6 ms bursts when present, well within the 20 ms budget.
+    if (g_dbg_imu_ok) {
+        sensor_msgs__msg__Imu im = imu->getData();
+        g_dbg_imu_read_ok   = imu->readOk() ? 1u : 0u;
+        g_dbg_accel_z_milli = (int32_t)(im.linear_acceleration.z * 1000.0);
+        g_dbg_gyro_z_milli  = (int32_t)(im.angular_velocity.z   * 1000.0);
+    }
 
     for (int i = 0; i < 4; ++i) g_dbg_rpm[i] = rpm[i];
     g_dbg_odom_x       = odom.x;

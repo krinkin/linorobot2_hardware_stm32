@@ -36,6 +36,18 @@ uint32_t lino_tim_clk_hz(TIM_TypeDef* tim)
     return (div == RCC_HCLK_DIV1) ? pclk : pclk * 2u;
 }
 
+void lino_i2c_clk_enable(I2C_TypeDef* i2c)
+{
+    if      (i2c == I2C1) __HAL_RCC_I2C1_CLK_ENABLE();
+    else if (i2c == I2C2) __HAL_RCC_I2C2_CLK_ENABLE();
+    else if (i2c == I2C3) __HAL_RCC_I2C3_CLK_ENABLE();
+}
+
+// delay() shim for the reused Arduino-style libs (imu_interface.h::calibrateGyro).
+// Declared in Arduino.h; defined here so the declaration stays HAL/FreeRTOS-free for
+// the math TUs (kinematics/pid) that include Arduino.h but never call delay().
+void delay(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
+
 // Free-running 1 MHz time base on TIM5 (32-bit) for lino_micros(). No GPIO — internal only.
 void lino_time_init(void)
 {
