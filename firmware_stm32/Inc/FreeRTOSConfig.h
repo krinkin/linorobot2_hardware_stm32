@@ -24,6 +24,7 @@
 #define configKERNEL_INTERRUPT_PRIORITY (configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS))
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS))
 #define INCLUDE_vTaskDelay 1
+#define INCLUDE_xTaskDelayUntil 1
 #define INCLUDE_xTaskGetSchedulerState 1
 #define vPortSVCHandler SVC_Handler
 #define xPortPendSVHandler PendSV_Handler

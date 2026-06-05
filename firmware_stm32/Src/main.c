@@ -6,6 +6,7 @@
 #include "stm32f4xx_hal.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "control_loop.h"
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
@@ -66,6 +67,20 @@ static void uros_task(void* arg) {
     for (;;) { vTaskDelay(pdMS_TO_TICKS(1000)); }
 }
 
+/* Control task: brings up the encoder/motor HAL and runs the 50 Hz control loop
+ * (PID over encoder feedback -> motor PWM, odometry, 200 ms deadman). Runs on its
+ * own FreeRTOS task, independent of the micro-ROS agent, so the base is governed
+ * even when comms are down. /cmd_vel + /odom topic bridging is Plan 7. */
+static void control_task(void* arg) {
+    (void)arg;
+    control_loop_init();
+    TickType_t last = xTaskGetTickCount();
+    for (;;) {
+        control_loop_tick();
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(20));   /* 50 Hz */
+    }
+}
+
 int main(void) {
     HAL_Init();                 /* stays on HSI 16 MHz (no PLL for first bring-up) */
 
@@ -83,6 +98,7 @@ int main(void) {
      * osPriorityNormal==24). Tie it to the config so it can never exceed the bound
      * and trip configASSERT(uxPriority < configMAX_PRIORITIES) -> silent hang. */
     xTaskCreate(uros_task, "uros", 6144, NULL, configMAX_PRIORITIES - 2, NULL);  /* 6144 words = 24 KB */
+    xTaskCreate(control_task, "ctrl", 2048, NULL, configMAX_PRIORITIES - 3, NULL); /* 2048 words = 8 KB */
     vTaskStartScheduler();
     for (;;) {}
 }

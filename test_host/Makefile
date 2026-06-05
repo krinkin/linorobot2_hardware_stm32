@@ -5,7 +5,8 @@ LIBDIR   := ../firmware/lib
 INCLUDES := -Ishim \
             -I$(LIBDIR)/kinematics \
             -I$(LIBDIR)/pid \
-            -I$(LIBDIR)/odom_integrator
+            -I$(LIBDIR)/odom_integrator \
+            -I../firmware_stm32/Inc
 
 # Test translation units — picked up as files are added in later tasks.
 TESTS := $(wildcard test_*.cpp)
