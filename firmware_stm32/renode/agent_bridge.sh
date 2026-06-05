@@ -23,6 +23,7 @@
 set -u
 
 ELF="${1:-$(cd "$(dirname "$0")/.." && pwd)/build/firmware_stm32.elf}"
+ELF="$(cd "$(dirname "$ELF")" && pwd)/$(basename "$ELF")"   # absolutize (Renode runs from its own dir)
 RENODE="${RENODE:-}"
 [ -z "$RENODE" ] && RENODE="$(command -v renode || true)"
 [ -z "$RENODE" ] && [ -x /home/claude/renode-portable/renode ] && RENODE=/home/claude/renode-portable/renode

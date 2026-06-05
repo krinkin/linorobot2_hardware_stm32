@@ -27,6 +27,7 @@ A_TICKS=$(addr g_dbg_ticks)
 A_RPM0=$(addr g_dbg_rpm)             # float[4]; [0] == M1 (TIM2)
 A_ODX=$(addr g_dbg_odom_x)
 A_XTICK=$(addr xTickCount)
+A_SOV=$(addr g_dbg_stack_overflow)
 FAULT=$(arm-none-eabi-nm "$ELF" | awk '/ HardFault_Handler$/{print "0x"toupper($1); exit}')
 # TIM2 (M1) base 0x40000000, TIM3 (M2) base 0x40000400; CR1 at +0x00, CNT at +0x24.
 TIM2_CR1=0x40000000; TIM2_CNT=0x40000024
@@ -61,6 +62,8 @@ sysbus WriteDoubleWord $TIM2_CNT 450000
 emulation RunFor "0.1"
 echo "ODX_AFTER:"
 sysbus ReadDoubleWord $A_ODX
+echo "SOV:"
+sysbus ReadDoubleWord $A_SOV
 EOF
 OUT=$(cd "$(dirname "$RENODE")" && (sleep 30; echo quit) | timeout 70 \
         ./"$(basename "$RENODE")" --console --disable-xwt "$RESC" 2>&1)
@@ -69,7 +72,7 @@ rm -f "$RESC"; pkill -f 'Renode.exe' 2>/dev/null
 after()  { echo "$OUT" | grep -A1 "$1" | tail -n1 | tr -d ' \r'; }
 nz()     { [ -n "$1" ] && [ "$1" != "0x00000000" ] && [ "$1" != "0x0" ]; }
 XTICK=$(after 'XTICK:'); TICKS=$(after 'TICKS:'); PC=$(after 'PC:')
-ODXB=$(after 'ODX_BEFORE:'); ODXA=$(after 'ODX_AFTER:')
+ODXB=$(after 'ODX_BEFORE:'); ODXA=$(after 'ODX_AFTER:'); SOV=$(after 'SOV:')
 
 echo "config-smoke : xTickCount=$XTICK  g_dbg_ticks=$TICKS  PC=$PC (HardFault=$FAULT)"
 echo "injected-enc : odom_x (frozen encoders) $ODXB --inject M1 CNT ramp--> $ODXA"
@@ -78,6 +81,7 @@ FAIL=0
 nz "$XTICK"          || { echo "  ✗ scheduler never ticked";   FAIL=1; }
 nz "$TICKS"          || { echo "  ✗ control loop never ran";   FAIL=1; }
 [ -n "$PC" ] && [ $((PC)) -ne $((FAULT)) ] || { echo "  ✗ CPU in HardFault"; FAIL=1; }   # numeric (case/zero-pad safe)
+! nz "$SOV" || { echo "  ✗ FreeRTOS stack overflow (g_dbg_stack_overflow != 0)"; FAIL=1; }
 [ -n "$ODXB" ] && [ -n "$ODXA" ] && [ "$ODXB" != "$ODXA" ] \
     || { echo "  ✗ injected encoder count did NOT move odometry (CNT->getRPM->odom not wired)"; FAIL=1; }
 

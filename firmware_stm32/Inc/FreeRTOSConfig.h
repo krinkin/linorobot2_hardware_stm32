@@ -16,7 +16,7 @@
 #define configUSE_16_BIT_TICKS 0
 #define configUSE_MUTEXES 1
 #define configUSE_TIMERS 0
-#define configCHECK_FOR_STACK_OVERFLOW 0
+#define configCHECK_FOR_STACK_OVERFLOW 2
 #define configUSE_MALLOC_FAILED_HOOK 0
 #define configPRIO_BITS 4
 #define configLIBRARY_LOWEST_INTERRUPT_PRIORITY 15

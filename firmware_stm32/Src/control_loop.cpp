@@ -17,6 +17,7 @@
 #include "kinematics.h"
 #include "pid.h"
 #include "odom_integrator.h"
+#include <cstring>     // memcpy (IMU snapshot)
 
 namespace {
 Encoder*       enc[4];
@@ -31,7 +32,13 @@ MAG*           mag;
 
 volatile float    cmd_x = 0, cmd_y = 0, cmd_wz = 0;
 volatile uint32_t prev_cmd_ms = 0, prev_odom_ms = 0;
+volatile float    last_x = 0, last_y = 0, last_heading = 0;   // pose snapshot (paired with vel)
 volatile float    last_vx = 0, last_vy = 0, last_wz = 0;
+
+// Latest IMU sample for the publisher (numeric fields only; header is never written and
+// stays zeroed — uros_task owns the published msg's frame_id). Copied under a critical
+// section in/out so no torn multi-field read across the two tasks.
+sensor_msgs__msg__Imu g_imu_snap{};
 
 const uint32_t CMD_TIMEOUT_MS = 200;   // deadman
 }
@@ -118,8 +125,12 @@ extern "C" void control_loop_tick(void)
 
     Kinematics::velocities v = core->step(lx, ly, lwz, rpm, dt);
 
-    // Publish the pose + body-velocity snapshot atomically for control_get_odom (Plan 7).
+    // Publish the pose + body-velocity as ONE coherent snapshot for control_get_odom (Plan 7).
+    // odom.{x,y,heading} were just fully updated by core->step(); capturing them together with
+    // the velocities under one critical section is what makes the published 6-tuple consistent
+    // (odom.update() itself is not in a critical section, so the reader must not read it live).
     taskENTER_CRITICAL();
+    last_x = odom.x; last_y = odom.y; last_heading = odom.heading;
     last_vx = v.linear_x; last_vy = v.linear_y; last_wz = v.angular_z;
     taskEXIT_CRITICAL();
 
@@ -131,6 +142,18 @@ extern "C" void control_loop_tick(void)
         g_dbg_imu_read_ok   = imu->readOk() ? 1u : 0u;
         g_dbg_accel_z_milli = (int32_t)(im.linear_acceleration.z * 1000.0);
         g_dbg_gyro_z_milli  = (int32_t)(im.angular_velocity.z   * 1000.0);
+#ifdef USE_FAKE_IMU
+        im.angular_velocity.z = last_wz;   // FakeIMU gyro-z := body yaw-rate (compiled out for MPU6050)
+#endif
+        // Publish-snapshot (numeric fields only; header stays zeroed).
+        taskENTER_CRITICAL();
+        g_imu_snap.orientation         = im.orientation;
+        g_imu_snap.angular_velocity    = im.angular_velocity;
+        g_imu_snap.linear_acceleration = im.linear_acceleration;
+        memcpy(g_imu_snap.orientation_covariance,         im.orientation_covariance,         sizeof(double) * 9);
+        memcpy(g_imu_snap.angular_velocity_covariance,    im.angular_velocity_covariance,    sizeof(double) * 9);
+        memcpy(g_imu_snap.linear_acceleration_covariance, im.linear_acceleration_covariance, sizeof(double) * 9);
+        taskEXIT_CRITICAL();
     }
 
     for (int i = 0; i < 4; ++i) g_dbg_rpm[i] = rpm[i];
@@ -153,7 +176,7 @@ extern "C" void control_get_odom(float* x, float* y, float* heading,
                                  float* vx, float* vy, float* wz)
 {
     taskENTER_CRITICAL();
-    float ox = odom.x, oy = odom.y, oh = odom.heading;
+    float ox = last_x, oy = last_y, oh = last_heading;   // the coherent pose snapshot
     float lvx = last_vx, lvy = last_vy, lwz_ = last_wz;
     taskEXIT_CRITICAL();
     if (x)       *x = ox;
@@ -162,4 +185,18 @@ extern "C" void control_get_odom(float* x, float* y, float* heading,
     if (vx)      *vx = lvx;
     if (vy)      *vy = lvy;
     if (wz)      *wz = lwz_;
+}
+
+extern "C" void control_get_imu(sensor_msgs__msg__Imu* out)
+{
+    if (!out) return;
+    taskENTER_CRITICAL();
+    out->orientation         = g_imu_snap.orientation;
+    out->angular_velocity    = g_imu_snap.angular_velocity;
+    out->linear_acceleration = g_imu_snap.linear_acceleration;
+    memcpy(out->orientation_covariance,         g_imu_snap.orientation_covariance,         sizeof(double) * 9);
+    memcpy(out->angular_velocity_covariance,    g_imu_snap.angular_velocity_covariance,    sizeof(double) * 9);
+    memcpy(out->linear_acceleration_covariance, g_imu_snap.linear_acceleration_covariance, sizeof(double) * 9);
+    taskEXIT_CRITICAL();
+    // out->header intentionally untouched (caller owns the frame_id String).
 }

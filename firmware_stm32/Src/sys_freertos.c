@@ -12,6 +12,19 @@
 
 struct _reent;
 
+// Stack-overflow hook (required by configCHECK_FOR_STACK_OVERFLOW=2). Latches a
+// Renode-observable flag and stops, so an undersized task stack becomes a visible symbol
+// instead of a silent HardFault. renode/control_smoke.sh reads g_dbg_stack_overflow and
+// fails if it is non-zero.
+volatile unsigned long g_dbg_stack_overflow = 0;
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    (void)xTask; (void)pcTaskName;
+    g_dbg_stack_overflow = 1;
+    taskDISABLE_INTERRUPTS();
+    for (;;) {}
+}
+
 void __malloc_lock(struct _reent *r)
 {
     (void)r;
