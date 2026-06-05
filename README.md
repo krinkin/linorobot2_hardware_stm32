@@ -37,20 +37,44 @@ MPU6050 burst data values, I2C SCL bus-recovery, a real magnetometer / MPU9250, 
 ## Build & test
 
 **No host ROS install is required** — `libmicroros` is built by a self-contained Docker image, and
-`ros2`/`micro_ros_agent` run only inside the agent container. Prerequisites:
+`ros2`/`micro_ros_agent` run only inside the agent container. There are two ways to run, pick one:
+
+### Option 1 — host needs *only* Docker (recommended for a clean machine)
+
+Everything else (ARM toolchain, Renode, socat) lives in a self-contained dev image
+([`docker/Dockerfile`](docker/Dockerfile)). You install nothing but Docker.
 
 ```bash
 git submodule update --init --recursive    # CMSIS / HAL / FreeRTOS + micro_ros utils (pinned)
-# Tools: arm-none-eabi-gcc/g++, GNU make, docker, socat; Renode 1.16.1 (portable; set $RENODE or PATH)
+make docker-test-all                        # build the dev image, then run the WHOLE suite in it
+# -> "================ ALL TIERS GREEN ================"
+
+make docker-shell                           # interactive shell in the dev image
+make docker-build-fw                        # run any single target in the image (make docker-<target>)
 ```
 
-**Everything (Tier A + B + the agent-free Renode tiers):**
+The dev image carries the toolchain + Renode; `make libmicroros` and the agent tiers run as
+*sibling* containers via the bind-mounted host Docker socket (Docker-out-of-Docker), so the only
+thing on your host is Docker itself. It uses Ubuntu 24.04's distro `gcc-arm-none-eabi`
+(`15:13.2.rel1-2`) — the same toolchain as CI and the dev box — so it reproduces the validated
+firmware (`text=108896`). (Heads-up: the upstream ARM-official 13.2.Rel1 tarball reports the same
+version but ships a different newlib-nano whose firmware hangs at boot in Renode — so we
+deliberately use the distro build.)
+
+### Option 2 — native tools on the host
+
 ```bash
+git submodule update --init --recursive
+# Tools: arm-none-eabi-gcc/g++ (13.2.x), GNU make, docker, socat, and Renode 1.16.1:
+curl -L https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz \
+  | tar -xz -C "$HOME"                       # -> $HOME/renode_1.16.1_portable/renode
+export RENODE="$HOME/renode_1.16.1_portable/renode"   # the smokes read $RENODE (or put it on PATH)
+
 make test-all     # -> "================ ALL TIERS GREEN ================"
 make help         # list every target
 ```
 
-**Three-tier model (run individually):**
+**Three-tier model (run individually — prefix any with `docker-` to run it in the image):**
 ```bash
 # Tier A — pure host math, no MCU toolchain:
 make test-host
@@ -59,10 +83,10 @@ make test-host
 make libmicroros  # build libmicroros.a via the pinned Docker image (~once; slow)
 make build-fw     # -> firmware_stm32/build/firmware_stm32.elf
 
-# Tier C — Renode emulation (no board):
-make renode       # Ф2: boots + transmits the ping (renode + socat)
-make control      # Ф4: control loop + injected-encoder -> odometry (renode)
-make imu          # Ф5: MPU6050 over HAL I2C via a Python mock (renode)
+# Tier C — Renode emulation (no board; needs Renode + socat):
+make renode       # Ф2: boots + transmits the ping
+make control      # Ф4: control loop + injected-encoder -> odometry
+make imu          # Ф5: MPU6050 over HAL I2C via a Python mock
 
 # Tier C+ — with a live micro-ROS agent (renode + docker + socat):
 make agent-roundtrip   # Ф3: XRCE session
@@ -76,6 +100,7 @@ CI: `.github/workflows/stm32-f446re.yml` runs Tiers A/B + Ф2/Ф4/Ф5 on every p
 
 ```
 Makefile                       # the entry point (targets above)
+docker/Dockerfile              # self-contained dev image (toolchain + Renode + socat) for `make docker-*`
 test_host/                     # Tier A host doctest tier (see test_host/README.md)
 firmware/lib/{kinematics,pid,odom_integrator,imu,motor}/   # portable code reused by both ports
 firmware_stm32/                # the native HAL port

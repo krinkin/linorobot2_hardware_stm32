@@ -11,16 +11,39 @@
 #   make topics          # Ф6: full base-node topic round-trip (cmd_vel + odom + imu) (needs renode, docker, socat)
 #   make test-all        # everything above, in order
 #
-# Prereqs: git submodules initialised  ->  git submodule update --init --recursive
-#          arm-none-eabi-gcc/g++, GNU make, docker, socat; renode for renode/control/imu/
-#          agent-roundtrip/topics. NO host ROS install needed (libmicroros is built by a
-#          self-contained Docker image; ros2/the agent run only inside the agent container).
+#   make docker-image    # build the self-contained dev image (toolchain + Renode + socat)
+#   make docker-test-all # run the WHOLE suite inside Docker — host needs ONLY Docker
+#   make docker-shell    # interactive shell in the dev image (repo + docker socket mounted)
+#   make docker-<target> # run any target above inside the dev image (e.g. make docker-build-fw)
+#
+# Two ways to run:
+#   1) Host has the tools  -> use the bare targets (test-host/build-fw/renode/...).
+#      Prereqs: arm-none-eabi-gcc/g++, GNU make, docker, socat, Renode 1.16.1 (set $RENODE
+#      or PATH). See README / docs/TESTING.md for the Renode install one-liner.
+#   2) Host has ONLY Docker -> use the docker-* targets. The dev image (docker/Dockerfile)
+#      carries the toolchain + Renode + socat; the libmicroros builder and the micro-ROS
+#      agent run as sibling containers via the bind-mounted host socket. Nothing else to install.
+#
+# Either way: git submodules first -> git submodule update --init --recursive.
+# NO host ROS install needed (libmicroros is built by a pinned Docker image; ros2/the
+# agent run only inside the agent container).
 
 DOCKER_IMG = microros/micro_ros_static_library_builder@sha256:1482f3df56184ecc5d4a9d45ad9be0a17a84a91fca947d07f20d1678b23f6243
 FW = firmware_stm32
 LIBMICROROS = $(FW)/micro_ros_stm32cubemx_utils/microros_static_library/libmicroros/libmicroros.a
 
-.PHONY: help test-host libmicroros build-fw renode control imu agent-roundtrip topics test-all clean submodules
+# Self-contained dev image (docker/Dockerfile): carries the ARM toolchain + Renode + socat.
+# Bind-mount the repo at its host path (so the sibling libmicroros/agent containers see the
+# same paths) and the host Docker socket (Docker-out-of-Docker). --network host lets Renode's
+# socket terminal and the agent container reach each other on localhost.
+DEV_IMG ?= linorobot2-stm32-dev:latest
+DOCKER_RUN = docker run --rm --network host \
+  -v "$(CURDIR)":"$(CURDIR)" -w "$(CURDIR)" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  $(DEV_IMG)
+
+.PHONY: help test-host libmicroros build-fw renode control imu agent-roundtrip topics test-all clean submodules \
+        docker-image docker-test-all docker-shell
 
 help:
 	@grep -E '^#   make ' $(MAKEFILE_LIST) | sed 's/^#   /  /'
@@ -68,6 +91,24 @@ topics:
 # --- everything ---
 test-all: test-host libmicroros build-fw renode control imu
 	@echo "================ ALL TIERS GREEN ================"
+
+# --- Run any tier inside the self-contained dev image (host needs only Docker) ---
+docker-image:
+	docker build -t $(DEV_IMG) docker
+
+docker-test-all: docker-image
+	$(DOCKER_RUN) make test-all
+
+docker-shell: docker-image
+	docker run --rm -it --network host \
+	  -v "$(CURDIR)":"$(CURDIR)" -w "$(CURDIR)" \
+	  -v /var/run/docker.sock:/var/run/docker.sock \
+	  $(DEV_IMG) bash
+
+# Generic passthrough: `make docker-build-fw`, `make docker-renode`, ... run `make <t>` inside.
+# (Explicit docker-image/docker-test-all/docker-shell above take precedence over this pattern.)
+docker-%: docker-image
+	$(DOCKER_RUN) make $*
 
 clean:
 	-$(MAKE) -C test_host clean

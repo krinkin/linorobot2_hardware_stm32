@@ -27,17 +27,40 @@ Tier C is a *runtime* gate in emulation (no hardware needed).
 ```bash
 # one-time: pull the vendored sources (CMSIS / HAL / FreeRTOS / micro-ROS utils)
 git submodule update --init --recursive
+```
 
+Then pick **one** of two setups:
+
+**(a) Docker only — recommended for a clean machine.** Install nothing but Docker; a
+self-contained dev image (`docker/Dockerfile`) carries the ARM toolchain + Renode + socat,
+and every tier runs inside it via the `docker-*` targets (see §3). This is the least-surprise
+path — it's exactly what bites people who clone onto a box without Renode installed.
+
+**(b) Native tools on the host:**
+```bash
 # toolchain (Debian/Ubuntu)
-sudo apt-get install -y g++ make gcc-arm-none-eabi binutils-arm-none-eabi docker.io
-# Renode (for Tier C): https://github.com/renode/renode/releases  (portable build, needs mono)
+sudo apt-get install -y g++ make gcc-arm-none-eabi binutils-arm-none-eabi docker.io socat
+# Renode 1.16.1 (portable build — bundles its own runtime, no system mono needed):
+curl -L https://github.com/renode/renode/releases/download/v1.16.1/renode-1.16.1.linux-portable.tar.gz \
+  | tar -xz -C "$HOME"
+export RENODE="$HOME/renode_1.16.1_portable/renode"   # the Tier-C smokes read $RENODE (or PATH)
 ```
 No CubeMX, no myST account, no `.ioc`. Docker is used only to build `libmicroros.a`
-(the prebuilt micro-ROS static library); the firmware itself is built by your host
-`arm-none-eabi-gcc` from a hand-written `Makefile`.
+(the prebuilt micro-ROS static library) and to run the micro-ROS agent (Tier C+); the
+firmware itself is built by `arm-none-eabi-gcc` from a hand-written `Makefile`.
 
 ## 3. Quick start
 
+**Docker only (setup a):**
+```bash
+make docker-test-all     # build the dev image, then run Tier A+B+C inside it -> "ALL TIERS GREEN"
+make docker-shell        # interactive shell in the image
+make docker-<target>     # run any single target in the image, e.g. make docker-build-fw
+```
+The dev image runs `make libmicroros` and the agent tiers as *sibling* containers over the
+bind-mounted host Docker socket (Docker-out-of-Docker), so the only host dependency is Docker.
+
+**Native tools (setup b):**
 ```bash
 make help        # list the targets
 make test-all    # Tier A + B + C, in order  ->  "ALL TIERS GREEN"
