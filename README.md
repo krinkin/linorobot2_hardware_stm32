@@ -1,10 +1,5 @@
 # linorobot2_hardware_stm32 -- native STM32 (STM32Cube/HAL) port
 
-[![CI](https://github.com/krinkin/linorobot2_hardware_stm32/actions/workflows/stm32-f446re.yml/badge.svg?branch=stm32)](https://github.com/krinkin/linorobot2_hardware_stm32/actions/workflows/stm32-f446re.yml)
-
-> CI status (branch `stm32`): host unit tests + F0 firmware link + Renode boot/control/IMU smokes
-> (F2/F4/F5) on every push and PR; the full topic round-trip (F6) on push. It is the only workflow.
-
 A **GUI-free native STM32Cube/HAL port** of the linorobot2 low-level micro-ROS base controller,
 living in **[`firmware_stm32/`](firmware_stm32/)**. It is the microcontroller-side firmware: it
 subscribes to `/cmd_vel`, runs per-wheel PID over encoder feedback to drive the motors, reads an
