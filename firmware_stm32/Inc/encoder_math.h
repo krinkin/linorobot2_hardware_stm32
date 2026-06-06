@@ -6,7 +6,7 @@
 // 16-bit wrap is handled by the int16_t-cast subtraction trick: it yields a
 // correctly signed delta across the 0xFFFF<->0x0000 boundary as long as
 // |delta| < 32768 per sample. At COUNTS_PER_REV=144000 (x4) and ~140 RPM the
-// per-20ms delta is ~6.7k counts — well inside the limit (Nyquist note).
+// per-20ms delta is ~6.7k counts -- well inside the limit (Nyquist note).
 #ifndef ENCODER_MATH_H
 #define ENCODER_MATH_H
 

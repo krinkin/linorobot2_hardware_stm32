@@ -22,10 +22,10 @@ static qmi8658_state g_imu;
 #define Ki 0.008f
 /* #define pi 3.14159265f */
 #define halfT 0.002127f        /*half the sample period*/
-/* 参与计算的加速度单位g 陀螺仪单位是弧度/s()【度*pi/180=弧度】*/
+/* Acceleration in g and gyro in rad/s for the computation (deg*pi/180 = rad) */
 
 
-/* 魔法函数InvSqrt()相当于1.0/sqrt() */
+/* "magic" InvSqrt(): fast approximation of 1.0/sqrt() */
 static float invSqrt(float number)
 {
     volatile long i;
@@ -67,20 +67,20 @@ EulerAngles get_euler_angles(float gx, float gy, float gz, float ax, float ay, f
 
     if( ax*ay*az==0)
         return eulaer;
-    /* 对加速度数据进行归一化处理 */
+    /* Normalize the accelerometer data */
     recipNorm = invSqrt( ax* ax +ay*ay + az*az);
     ax = ax *recipNorm;
     ay = ay *recipNorm;
     az = az *recipNorm;
-    /* DCM矩阵旋转 */
+    /* DCM matrix rotation */
     vx = 2*(q1q3 - q0q2);
     vy = 2*(q0q1 + q2q3);
     vz = q0q0 - q1q1 - q2q2 + q3q3 ;
-    /* 在机体坐标系下做向量叉积得到补偿数据 */
+    /* Cross product in the body frame to obtain the compensation vector */
     ex = ay*vz - az*vy ;
     ey = az*vx - ax*vz ;
     ez = ax*vy - ay*vx ;
-    /* 对误差进行PI计算，补偿角速度 */
+    /* PI control on the error to compensate the angular velocity */
     exInt = exInt + ex * Ki;
     eyInt = eyInt + ey * Ki;
     ezInt = ezInt + ez * Ki;
@@ -88,7 +88,7 @@ EulerAngles get_euler_angles(float gx, float gy, float gz, float ax, float ay, f
     gx = gx + Kp*ex + exInt;
     gy = gy + Kp*ey + eyInt;
     gz = gz + Kp*ez + ezInt;
-    /* 按照四元素微分公式进行四元素更新 */
+    /* Update the quaternion via the quaternion differential equation */
     q0 = q0 + (-q1*gx - q2*gy - q3*gz)*halfT;
     q1 = q1 + (q0*gx + q2*gz - q3*gy)*halfT;
     q2 = q2 + (q0*gy - q1*gz + q3*gx)*halfT;

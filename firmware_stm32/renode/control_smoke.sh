@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Renode Ф4 control smoke: prove the encoder/PWM control loop comes alive and that an
-# encoder count genuinely propagates through the whole chain — in emulation, no board.
+# Renode F4 control smoke: prove the encoder/PWM control loop comes alive and that an
+# encoder count genuinely propagates through the whole chain -- in emulation, no board.
 #
 #  (a) CONFIG SMOKE: boot, run virtual time, assert the FreeRTOS scheduler ticked
 #      (xTickCount > 0), the control task ran (g_dbg_ticks > 0 -> HAL_TIM_Encoder_Init +
@@ -11,8 +11,8 @@
 #      capture odom_x, then inject ONLY an M1 count ramp (TIM2->CNT). With both timers frozen,
 #      the only thing that can move odometry is our injection -> assert odom_x CHANGED.
 #
-# NOT asserted (hardware-only, like Ф2/Ф3): real x4 quadrature counting, direction decode,
-# and real PWM duty/waveform — Renode models timer registers, not pin-level signals.
+# NOT asserted (hardware-only, like F2/F3): real x4 quadrature counting, direction decode,
+# and real PWM duty/waveform -- Renode models timer registers, not pin-level signals.
 set -u
 ELF="${1:-$(dirname "$0")/../build/firmware_stm32.elf}"
 ELF="$(cd "$(dirname "$ELF")" && pwd)/$(basename "$ELF")"
@@ -78,16 +78,16 @@ echo "config-smoke : xTickCount=$XTICK  g_dbg_ticks=$TICKS  PC=$PC (HardFault=$F
 echo "injected-enc : odom_x (frozen encoders) $ODXB --inject M1 CNT ramp--> $ODXA"
 
 FAIL=0
-nz "$XTICK"          || { echo "  ✗ scheduler never ticked";   FAIL=1; }
-nz "$TICKS"          || { echo "  ✗ control loop never ran";   FAIL=1; }
-[ -n "$PC" ] && [ $((PC)) -ne $((FAULT)) ] || { echo "  ✗ CPU in HardFault"; FAIL=1; }   # numeric (case/zero-pad safe)
-! nz "$SOV" || { echo "  ✗ FreeRTOS stack overflow (g_dbg_stack_overflow != 0)"; FAIL=1; }
+nz "$XTICK"          || { echo "  [FAIL] scheduler never ticked";   FAIL=1; }
+nz "$TICKS"          || { echo "  [FAIL] control loop never ran";   FAIL=1; }
+[ -n "$PC" ] && [ $((PC)) -ne $((FAULT)) ] || { echo "  [FAIL] CPU in HardFault"; FAIL=1; }   # numeric (case/zero-pad safe)
+! nz "$SOV" || { echo "  [FAIL] FreeRTOS stack overflow (g_dbg_stack_overflow != 0)"; FAIL=1; }
 [ -n "$ODXB" ] && [ -n "$ODXA" ] && [ "$ODXB" != "$ODXA" ] \
-    || { echo "  ✗ injected encoder count did NOT move odometry (CNT->getRPM->odom not wired)"; FAIL=1; }
+    || { echo "  [FAIL] injected encoder count did NOT move odometry (CNT->getRPM->odom not wired)"; FAIL=1; }
 
 if [ "$FAIL" = 0 ]; then
-  echo "✅ Ф4 PASS: control loop alive; injected encoder CNT moves getRPM -> odometry end-to-end"
+  echo "[PASS] F4 PASS: control loop alive; injected encoder CNT moves getRPM -> odometry end-to-end"
   exit 0
 else
-  echo "❌ Ф4 FAIL"; echo "$OUT" | tail -n 20; exit 1
+  echo "[FAIL] F4 FAIL"; echo "$OUT" | tail -n 20; exit 1
 fi

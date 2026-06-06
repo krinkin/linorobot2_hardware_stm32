@@ -42,13 +42,13 @@ struct I2cDesc {
 };
 
 // Time bases:
-//   lino_millis() = the FreeRTOS tick (configTICK_RATE_HZ = 1000 => 1 ms) — used for the
+//   lino_millis() = the FreeRTOS tick (configTICK_RATE_HZ = 1000 => 1 ms) -- used for the
 //     deadman and odometry dt (matches the Arduino reference, which uses millis() there).
 //   lino_micros() = a dedicated free-running 1 MHz timer (TIM5, set up by lino_time_init),
 //     giving TRUE ~1 us resolution for the encoder RPM dt (the reference uses micros()).
-//     Works in Renode (the timer free-runs on virtual time) AND on hardware — unlike the
+//     Works in Renode (the timer free-runs on virtual time) AND on hardware -- unlike the
 //     DWT cycle counter, which Renode does not model. MUST be called only after
-//     lino_time_init() (TIM5 clock enabled) — i.e. from the running control loop.
+//     lino_time_init() (TIM5 clock enabled) -- i.e. from the running control loop.
 static inline uint32_t lino_millis(void) { return (uint32_t)xTaskGetTickCount(); }
 static inline uint32_t lino_micros(void) { return (uint32_t)TIM5->CNT; }
 

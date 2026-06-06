@@ -46,7 +46,7 @@ public:
 
     // Native gyro-bias calibration (the Arduino path calibrates the chip's offset registers;
     // this port has no I2Cdevlib, so we average N stationary samples and subtract in software).
-    // Hides the non-virtual IMUInterface::init() — imu is typed Mpu6050Imu* (via the IMU macro),
+    // Hides the non-virtual IMUInterface::init() -- imu is typed Mpu6050Imu* (via the IMU macro),
     // and getData() skips the base gyro_cal_ subtraction under USE_MPU6050_IMU, so this is the
     // sole bias correction. MUST run with the robot stationary (it does: before any /cmd_vel,
     // deadman holding the base).
@@ -102,7 +102,7 @@ private:
     bool last_read_ok_ = false;
 };
 
-// Verbatim from firmware/lib/imu/default_imu.h — the no-IMU fallback.
+// Verbatim from firmware/lib/imu/default_imu.h -- the no-IMU fallback.
 class FakeIMU : public IMUInterface
 {
 public:

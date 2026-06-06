@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Ф6 full base-node topic round-trip, in emulation (no board). Extends the Ф3 bridge
+# F6 full base-node topic round-trip, in emulation (no board). Extends the F3 bridge
 # (Renode RAW socket <-> socat <-> micro_ros_agent in one --network host container) and adds
-# the Ф5 MPU6050 mock so a real /imu/data_raw is published. Once the firmware connects (the
+# the F5 MPU6050 mock so a real /imu/data_raw is published. Once the firmware connects (the
 # 4-state reconnect machine -> createEntities), it exposes the linorobot2 base-node interface:
 #   sub  geometry_msgs/Twist   on  cmd_vel
 #   pub  nav_msgs/Odometry     on  odom/unfiltered   (frame odom / child base_footprint)
 #   pub  sensor_msgs/Imu       on  imu/data_raw      (frame imu_link)   [imu/mag skipped: FakeMAG]
-# PASS = XRCE session + participant (Ф3 guard) AND the three topics exist (imu/mag absent) AND
+# PASS = XRCE session + participant (F3 guard) AND the three topics exist (imu/mag absent) AND
 # odom/imu echo with the right frame_ids AND ros2 topic pub /cmd_vel routes without error.
 #
-# Test honesty: Renode timers free-run (Ф4) and DummyI2CSlave is 1-byte/read (Ф5), so the
+# Test honesty: Renode timers free-run (F4) and DummyI2CSlave is 1-byte/read (F5), so the
 # cmd_vel->exact-odom-value link and the IMU SI values are NOT asserted here (covered by
-# Ф4 control_smoke + host ControlCore tests + Ф5). Ф6 proves the TOPIC INTERFACE + frames +
+# F4 control_smoke + host ControlCore tests + F5). F6 proves the TOPIC INTERFACE + frames +
 # bidirectional routing over a live agent.
 set -u
 
@@ -66,7 +66,7 @@ for i in $(seq 1 20); do
   ss -ltn 2>/dev/null | grep -q ":$PORT " && { LISTENING=1; echo "  listening after ${i}s"; break; }
   sleep 1
 done
-[ "$LISTENING" = 1 ] || { echo "❌ Renode never listened on :$PORT"; tail -n 15 "$LOG_RENODE"; exit 1; }
+[ "$LISTENING" = 1 ] || { echo "[FAIL] Renode never listened on :$PORT"; tail -n 15 "$LOG_RENODE"; exit 1; }
 
 echo "=== agent container: socat + micro_ros_agent, then ros2 topic list/pub/echo ==="
 docker run --rm --network host --entrypoint bash "$AGENT_IMG" -c "
@@ -108,8 +108,8 @@ echo "---- odom echo (head) ----"; echo "$ODOM" | grep -E 'frame_id|position|ori
 echo "---- imu echo (head) ----";  echo "$IMU"  | grep -E 'frame_id|angular_velocity|linear_acceleration' | head -4
 
 FAIL=0
-mark(){ if [ "$1" = 0 ]; then echo "  ✅ $2"; else echo "  ✗ $2"; FAIL=1; fi; }
-grep -qiE 'session established' "$LOG_AGENT" && grep -qiE 'participant created' "$LOG_AGENT"; mark $? "XRCE session + participant (Ф3 guard)"
+mark(){ if [ "$1" = 0 ]; then echo "  [PASS] $2"; else echo "  [FAIL] $2"; FAIL=1; fi; }
+grep -qiE 'session established' "$LOG_AGENT" && grep -qiE 'participant created' "$LOG_AGENT"; mark $? "XRCE session + participant (F3 guard)"
 echo "$LIST" | grep -q '/cmd_vel';         mark $? "/cmd_vel subscription present"
 echo "$LIST" | grep -q '/odom/unfiltered'; mark $? "/odom/unfiltered publisher present"
 echo "$LIST" | grep -q '/imu/data_raw';    mark $? "/imu/data_raw publisher present"
@@ -118,13 +118,13 @@ echo "$ODOM" | grep -qE '^[[:space:]]*frame_id: odom$';            mark $? "odom
 echo "$ODOM" | grep -q 'child_frame_id: base_footprint'; mark $? "odom child_frame_id == base_footprint"
 echo "$IMU"  | grep -q 'angular_velocity:' && echo "$IMU" | grep -q 'linear_acceleration:'; mark $? "imu msg has angular_velocity + linear_acceleration"
 # NOTE: ros2 topic pub -t exits 0 once it has published; this confirms the AGENT published
-# (the firmware-side delivery is implied by the executor spinning — the odom/imu pubs above —
+# (the firmware-side delivery is implied by the executor spinning -- the odom/imu pubs above --
 # and the /cmd_vel subscription existing; it is unit-tested by the host ControlCore tests).
 grep -q 'CMD_PUB_OK' "$LOG_AGENT"; mark $? "agent published /cmd_vel without error"
 
 if [ "$FAIL" = 0 ]; then
-  echo "✅ Ф6 PASS: full base-node topic round-trip (cmd_vel + odom/unfiltered + imu/data_raw) over a live agent"
+  echo "[PASS] F6 PASS: full base-node topic round-trip (cmd_vel + odom/unfiltered + imu/data_raw) over a live agent"
   exit 0
 else
-  echo "❌ Ф6 FAIL"; echo "--- agent log tail ---"; tail -n 25 "$LOG_AGENT" | clean; exit 1
+  echo "[FAIL] F6 FAIL"; echo "--- agent log tail ---"; tail -n 25 "$LOG_AGENT" | clean; exit 1
 fi

@@ -1,5 +1,5 @@
 // Plain-C boundary to the C++ control module. main.c (C) talks to the control
-// loop only through these functions — no C++ type ever crosses the boundary.
+// loop only through these functions -- no C++ type ever crosses the boundary.
 //   control_loop_init : construct + HAL-init the encoders/motors/PID/kinematics
 //                       (call once, after HAL_Init, from a task so clocks are up)
 //   control_loop_tick : run one 50 Hz moveBase cycle (deadman, getRPM, PID, spin,
@@ -24,7 +24,7 @@ void control_get_odom(float* x, float* y, float* heading,
 
 // Fills ONLY the numeric fields (orientation, angular_velocity, linear_acceleration,
 // and the three covariance arrays) from the latest control-task IMU read, under a
-// critical section. MUST NOT touch out->header — the caller (uros_task) owns the
+// critical section. MUST NOT touch out->header -- the caller (uros_task) owns the
 // header.frame_id String.
 void control_get_imu(sensor_msgs__msg__Imu* out);
 

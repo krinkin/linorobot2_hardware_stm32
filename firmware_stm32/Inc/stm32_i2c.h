@@ -1,4 +1,4 @@
-// Thin HAL I2C adapter — the SOLE place HAL I2C symbols appear in the port. Wraps a
+// Thin HAL I2C adapter -- the SOLE place HAL I2C symbols appear in the port. Wraps a
 // configured bus (I2cDesc) and exposes register read/write/ping used by the I2C device
 // drivers (e.g. the MPU6050 IMU). Mirrors the stm32_encoder/stm32_motor adapter pattern.
 #ifndef STM32_I2C_H
