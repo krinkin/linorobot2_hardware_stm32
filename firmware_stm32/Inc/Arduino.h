@@ -5,14 +5,11 @@
 #ifndef LINO_STM32_ARDUINO_SHIM_H
 #define LINO_STM32_ARDUINO_SHIM_H
 
-#include <math.h>     // fabs, cos, sin
+#include <math.h>     // fabs (used by kinematics.cpp)
 #include <stdint.h>
 
 #ifndef PI
 #define PI 3.1415926535897932384626433832795
-#endif
-#ifndef DEG_TO_RAD
-#define DEG_TO_RAD 0.017453292519943295
 #endif
 
 #ifdef __cplusplus

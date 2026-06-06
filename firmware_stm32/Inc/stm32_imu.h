@@ -1,7 +1,7 @@
-// Native STM32 IMU drivers (replaces the Arduino-bound default_imu.h, which pulls
-// I2Cdevlib + Wire). Provides a register-level MPU6050 driver over the HAL I2C adapter
-// and the verbatim FakeIMU fallback, both satisfying the reused IMUInterface. The
-// USE_*_IMU -> #define IMU <Class> selector mirrors firmware/lib/imu/imu.h.
+// Native STM32 IMU drivers (in place of an Arduino-bound I2Cdevlib + Wire driver).
+// Provides a register-level MPU6050 driver over the HAL I2C adapter and a FakeIMU
+// fallback, both satisfying the reused IMUInterface. The USE_*_IMU -> #define IMU
+// <Class> selector follows the upstream linorobot2 imu.h pattern.
 //
 // Include order matters: imu_interface.h calls delay() (Arduino.h) and
 // micro_ros_string_utilities_set() (micro_ros_utilities) without including them itself.
@@ -102,7 +102,7 @@ private:
     bool last_read_ok_ = false;
 };
 
-// Verbatim from firmware/lib/imu/default_imu.h -- the no-IMU fallback.
+// The no-IMU fallback (same shape as the upstream linorobot2 FakeIMU).
 class FakeIMU : public IMUInterface
 {
 public:
@@ -116,7 +116,7 @@ private:
     geometry_msgs__msg__Vector3 gyro_{};
 };
 
-// Selector (mirror of firmware/lib/imu/imu.h). Add an arm + concrete class per new chip.
+// Selector (USE_*_IMU -> IMU). Add an arm + concrete class per new chip.
 #ifdef USE_MPU6050_IMU
 #define IMU Mpu6050Imu
 #endif

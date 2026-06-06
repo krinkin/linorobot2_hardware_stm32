@@ -32,7 +32,7 @@ double PID::compute(float setpoint, float measured_value)
     double error;
     double pid;
 
-    //setpoint is constrained between min and max to prevent pid from having too much error
+    // PID on the tracking error; the output is clamped to [min_val_, max_val_] below.
     error = setpoint - measured_value;
     integral_ += error;
     derivative_ = error - prev_error_;

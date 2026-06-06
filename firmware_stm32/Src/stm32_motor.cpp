@@ -113,9 +113,5 @@ void Generic2::reverse(int pwm)
 void Generic2::brake()
 {
     if (!used_) return;
-    __HAL_TIM_SET_COMPARE(&htim_, channel_, 0);
-#ifdef USE_SHORT_BRAKE
-    HAL_GPIO_WritePin(dir_a_port_, dir_a_pin_, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(dir_b_port_, dir_b_pin_, GPIO_PIN_SET);
-#endif
+    __HAL_TIM_SET_COMPARE(&htim_, channel_, 0);   // coast (PWM duty 0)
 }

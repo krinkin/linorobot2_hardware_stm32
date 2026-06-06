@@ -55,11 +55,11 @@ void HAL_UART_MspInit(UART_HandleTypeDef* h) {
     }
 }
 
-/* ---- micro-ROS base node (the comms half of firmware.ino's controlCallback) ----
+/* ---- micro-ROS base node (the comms half of the upstream Arduino controlCallback) ----
  * uros_task owns the rclc executor and runs ONLY communication; the control loop runs
  * independently on control_task (deadman-safe even when the agent is down). Cross-task data
  * crosses ONLY through the plain-C control_loop snapshot surface. A 4-state reconnect machine
- * (ported from firmware.ino) destroys + recreates the entities on agent loss. */
+ * destroys + recreates the entities on agent loss. */
 /* assign-to-temp suppresses the rcl warn_unused_result attribute */
 #define RCCHECK(fn)     { rcl_ret_t _rc = (fn); if (_rc != RCL_RET_OK) return false; }
 #define RCSOFTCHECK(fn) { rcl_ret_t _rc = (fn); (void)_rc; }
@@ -67,7 +67,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* h) {
     uint32_t _now = HAL_GetTick(); if ((uint32_t)(_now - _last) > (MS)) { X; _last = _now; } } while (0)
 
 enum { WAITING_AGENT, AGENT_AVAILABLE, AGENT_CONNECTED, AGENT_DISCONNECTED };
-volatile int g_dbg_uros_state = WAITING_AGENT;   /* Renode-observable */
+volatile int g_dbg_uros_state = WAITING_AGENT;   /* reconnect-machine state; exported for debugger/ELF inspection */
 /* ROS-epoch offset (ns) computed from rmw_uros_sync_session; the local clock_gettime is
  * only the FreeRTOS tick (uptime), so header stamps must add this to reach wall-clock time.
  * Session-scoped -> recomputed on every (re)connect. */

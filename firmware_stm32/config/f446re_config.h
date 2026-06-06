@@ -1,7 +1,7 @@
 // NUCLEO-F446RE board configuration for the native STM32 port (DIFFERENTIAL_DRIVE).
 // Two layers:
-//   (1) linorobot SEMANTIC macros (copied from config/lino_base_config.h) consumed
-//       by Kinematics / PID / the control loop -- identical names to the Arduino tree.
+//   (1) linorobot SEMANTIC macros (robot geometry, PID, RPM/CPR) consumed by
+//       Kinematics / PID / the control loop -- the same macro names as upstream linorobot2.
 //   (2) STM32 HARDWARE binding: the timer input clock + per-logical-id descriptor
 //       tables (the ONLY F446-specific constants). A second board = a new header
 //       with the same macros + its own tables; zero driver/control changes.
@@ -72,9 +72,9 @@
 #define MOTOR4_IN_A -1
 #define MOTOR4_IN_B -1
 
-// ---- IMU / MAG selection (mirrors firmware/lib/imu/imu.h + mag.h) ----
+// ---- IMU / MAG selection (USE_*_IMU -> IMU, USE_*_MAG -> MAG) ----
 // USE_MPU6050_IMU -> stm32_imu.h: #define IMU Mpu6050Imu; AND imu_interface.h getData()
-// skips the host gyro-cal subtraction (matching the Arduino chip-calibrated path).
+// skips the host gyro-cal subtraction (matching the chip-calibrated path).
 // No USE_*_MAG -> stm32_mag.h falls through to FakeMAG (/imu/mag never published).
 #define USE_MPU6050_IMU
 #define MPU6050_I2C_ADDR 0x68     // 7-bit; AD0=GND (0x69 if AD0=HIGH)

@@ -9,7 +9,8 @@
 #   make imu             # F5: MPU6050 read over real HAL I2C via a Python mock slave (needs renode)
 #   make agent-roundtrip # F3: live micro_ros_agent <-> firmware XRCE session in emulation (needs renode, docker, socat)
 #   make topics          # F6: full base-node topic round-trip (cmd_vel + odom + imu) (needs renode, docker, socat)
-#   make test-all        # everything above, in order
+#   make test-all        # test-host + libmicroros + build-fw + renode + control + imu, in order
+#                         # (the agent tiers agent-roundtrip/topics are not part of test-all)
 #
 #   make docker-image    # build the self-contained dev image (toolchain + Renode + socat)
 #   make docker-test-all # run the WHOLE suite inside Docker -- host needs ONLY Docker

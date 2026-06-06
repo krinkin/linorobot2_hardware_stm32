@@ -1,6 +1,6 @@
 // Native STM32 quadrature encoder over a TIM in encoder mode. Satisfies the
-// portable Encoder API (ctor + getRPM/read/write) so the control loop is shared
-// with the Arduino firmware. The leading ctor int (pin1) is a LOGICAL encoder id
+// portable Encoder API (ctor + getRPM/read/write) -- the same API as the upstream
+// linorobot2 Arduino driver. The leading ctor int (pin1) is a LOGICAL encoder id
 // indexing the board's ENC_DESCRIPTORS; pin2 is ignored; a negative id / cpr<=0
 // marks an unused wheel (all methods become no-ops). All decision math lives in
 // the host-tested EncoderMath; this class only does HAL register work.
