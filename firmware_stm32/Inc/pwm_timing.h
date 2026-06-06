@@ -4,7 +4,7 @@
 // [0, ARR] maps to 0..100%). The prescaler is chosen so
 //     f_pwm = timer_clk / ((PSC+1) * (ARR+1))  ~= requested freq.
 // If the requested freq is too high to reach at the given resolution/clock, PSC
-// clamps to 0 (max achievable freq) — the formula is the contract and self-corrects
+// clamps to 0 (max achievable freq) -- the formula is the contract and self-corrects
 // when the clock tree changes (e.g. PLL). PSC saturates at 0xFFFF.
 #ifndef PWM_TIMING_H
 #define PWM_TIMING_H

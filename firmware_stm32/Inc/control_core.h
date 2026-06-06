@@ -1,4 +1,4 @@
-// Pure (HAL-free) control step — the moveBase() math, extracted so it is
+// Pure (HAL-free) control step -- the moveBase() math, extracted so it is
 // host-unit-testable with a FakeMotor and injected wheel RPMs. The HAL encoder
 // reads, the 50 Hz cadence and the deadman timer live in control_loop.cpp; this
 // header holds only: cmd -> Kinematics::getRPM -> PID -> Motor::spin ->

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ф3 micro-ROS agent round-trip, fully in emulation (no board, no real serial port):
+# F3 micro-ROS agent round-trip, fully in emulation (no board, no real serial port):
 #
 #   firmware USART2  <--Renode socket (raw, telnet OFF)-->  socat  <--pty-->  micro_ros_agent
 #
@@ -71,7 +71,7 @@ EOF
 ( cd "$(dirname "$RENODE")" && (sleep "$RUN_SECS"; echo quit) | timeout $((RUN_SECS+10)) \
     ./"$(basename "$RENODE")" --console --disable-xwt "$RESC" ) > "$LOG_RENODE" 2>&1 &
 
-# PASSIVE listen check only — never actually connect. Renode's socket terminal serves a
+# PASSIVE listen check only -- never actually connect. Renode's socket terminal serves a
 # single client; an active probe (then socat connecting second) races its accept slot and
 # socat fails ("Serial port not found"). `ss` reads the LISTEN state without connecting,
 # so socat is the sole client.
@@ -81,7 +81,7 @@ for i in $(seq 1 20); do
   sleep 1
 done
 if [ "$LISTENING" != 1 ]; then
-  echo "❌ Renode never listened on :$PORT. Likely the port is busy (set UROS_PORT to a free one)."
+  echo "[FAIL] Renode never listened on :$PORT. Likely the port is busy (set UROS_PORT to a free one)."
   echo "--- ss -ltn | grep $PORT ---"; ss -ltn | grep "$PORT" || echo "(nothing on $PORT)"
   echo "--- renode log tail ---"; tail -n 15 "$LOG_RENODE"
   exit 1
@@ -105,9 +105,9 @@ echo "---- node name seen on the wire (hex 73 74 6D 33 32 = 'stm32') ----"
 grep -iE '73 74 6D 33 32' "$LOG_AGENT" | head -1 | sed 's/\x1b\[[0-9;]*m//g'
 
 if grep -qiE 'session established' "$LOG_AGENT" && grep -qiE 'participant created' "$LOG_AGENT"; then
-  echo "✅ Ф3 PASS: live micro-ROS round-trip — XRCE session + participant created."
+  echo "[PASS] F3 PASS: live micro-ROS round-trip -- XRCE session + participant created."
   exit 0
 else
-  echo "❌ Ф3 FAIL: no XRCE session/participant. Agent log tail:"; tail -n 15 "$LOG_AGENT" | sed 's/\x1b\[[0-9;]*m//g'
+  echo "[FAIL] F3 FAIL: no XRCE session/participant. Agent log tail:"; tail -n 15 "$LOG_AGENT" | sed 's/\x1b\[[0-9;]*m//g'
   exit 1
 fi

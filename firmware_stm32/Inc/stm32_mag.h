@@ -8,7 +8,7 @@
 #include <micro_ros_utilities/string_utilities.h>
 #include "mag_interface.h"
 
-// Verbatim from firmware/lib/imu/default_mag.h — the no-MAG fallback.
+// Verbatim from firmware/lib/imu/default_mag.h -- the no-MAG fallback.
 class FakeMAG : public MAGInterface
 {
 public:

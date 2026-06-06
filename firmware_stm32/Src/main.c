@@ -1,7 +1,7 @@
 /* GUI-free F446RE micro-ROS firmware (hand-written; no CubeMX).
  * HAL_Init (HSI) + USART2 (PA2/PA3) + two FreeRTOS tasks: uros_task (micro-ROS base node)
  * and control_task (50 Hz encoder/PID/motor/odom/IMU loop). The HAL timebase is backed by
- * the FreeRTOS tick (SysTick), so FreeRTOS stays the sole SysTick owner with no conflict —
+ * the FreeRTOS tick (SysTick), so FreeRTOS stays the sole SysTick owner with no conflict --
  * and it works in Renode, which does not model the DWT cycle counter. */
 #include "stm32f4xx_hal.h"
 #include "FreeRTOS.h"

@@ -2,7 +2,7 @@
 #include "control_core.h"
 #include <cmath>
 
-// ControlCore: the pure moveBase() step (firmware_stm32/Inc/control_core.h) —
+// ControlCore: the pure moveBase() step (firmware_stm32/Inc/control_core.h) --
 // cmd -> Kinematics::getRPM -> PID -> Motor::spin -> getVelocities -> odom.update.
 
 namespace {

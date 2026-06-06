@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Renode boot smoke (Ф2): boot the firmware ELF and prove it comes ALIVE — not merely
+# Renode boot smoke (F2): boot the firmware ELF and prove it comes ALIVE -- not merely
 # "didn't HardFault". The strong signal is that USART2 emits the micro-ROS ping: that
 # can only happen if the FreeRTOS scheduler started, uros_task was scheduled, and the
 # HAL-UART transport ran. A startup hang (e.g. a configASSERT spin) emits nothing.
 #
 # Why not just check "PC != HardFault_Handler": a configASSERT(uxPriority<configMAX_PRIORITIES)
-# failure disables interrupts and spins in an infinite self-branch — NOT a HardFault — so the
+# failure disables interrupts and spins in an infinite self-branch -- NOT a HardFault -- so the
 # old PC check passed a firmware that never started the scheduler. The ping-TX check catches it.
 #
 # Usage: boot_smoke.sh [path/to/firmware.elf]
@@ -45,7 +45,7 @@ EOF
 ( cd "$(dirname "$RENODE")" && (sleep "$SECS"; echo quit) | timeout $((SECS+10)) \
     ./"$(basename "$RENODE")" --console --disable-xwt "$RESC" ) > "$RENLOG" 2>&1 &
 
-# PASSIVE listen check (ss) — do NOT open a probe connection; Renode's socket terminal
+# PASSIVE listen check (ss) -- do NOT open a probe connection; Renode's socket terminal
 # serves one client, so let our socat be that client.
 for i in $(seq 1 20); do
   ss -ltn 2>/dev/null | grep -q ":$PORT " && break
@@ -59,12 +59,12 @@ echo "boot smoke: USART2 emitted $NBYTES bytes in $((SECS-4))s"
 if [ "$NBYTES" -gt 0 ]; then
   echo "  first bytes: $(head -c 16 "$BYTES" | xxd -p)"
   rm -f "$BYTES" "$RENLOG"
-  echo "✅ Ф2 PASS: scheduler + uros_task + UART transport alive (firmware transmits the micro-ROS ping)"
+  echo "[PASS] F2 PASS: scheduler + uros_task + UART transport alive (firmware transmits the micro-ROS ping)"
   exit 0
 fi
 
 # --- no bytes: diagnose HardFault vs. a startup spin -------------------------------------
-echo "❌ Ф2 FAIL: USART2 silent — firmware never reached the transmit path."
+echo "[FAIL] F2 FAIL: USART2 silent -- firmware never reached the transmit path."
 FAULT=$(arm-none-eabi-nm "$ELF" 2>/dev/null | awk '/ HardFault_Handler$/{print "0x"toupper($1)}' | head -n1)
 RESC2=$(mktemp --suffix=.resc)
 cat > "$RESC2" <<EOF

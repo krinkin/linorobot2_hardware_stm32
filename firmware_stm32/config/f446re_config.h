@@ -1,7 +1,7 @@
 // NUCLEO-F446RE board configuration for the native STM32 port (DIFFERENTIAL_DRIVE).
 // Two layers:
 //   (1) linorobot SEMANTIC macros (copied from config/lino_base_config.h) consumed
-//       by Kinematics / PID / the control loop — identical names to the Arduino tree.
+//       by Kinematics / PID / the control loop -- identical names to the Arduino tree.
 //   (2) STM32 HARDWARE binding: the timer input clock + per-logical-id descriptor
 //       tables (the ONLY F446-specific constants). A second board = a new header
 //       with the same macros + its own tables; zero driver/control changes.

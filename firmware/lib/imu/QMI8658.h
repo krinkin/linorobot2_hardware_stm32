@@ -52,9 +52,9 @@ public:
   int16_t ax, ay, az, gx, gy, gz;
   float pith, roll, yaw;
   unsigned long now, lastTime = 0;
-  float dt;      //微分时间
-  float agz = 0; //角度变量
-  long gzo = 0;  //陀螺仪偏移量
+  float dt;      // integration time step
+  float agz = 0; // accumulated angle
+  long gzo = 0;  // gyro zero offset
 };
 
 /*----------------------------------------------------------------------------------------------
@@ -69,7 +69,7 @@ public:
 #define CTRL4 0X05    //Magnetometer Settings
 #define CTRL5 0X06    //Sensor Data Processing Settings
 #define CTRL7 0x08    //Enable Sensors and Configure Data Reads
-#define CTRL8 0X09    //Reserved – Special Settings
+#define CTRL8 0X09    //Reserved - Special Settings
 
 ///<Sensor Data Output Registers>
 #define AccX_L 0x35

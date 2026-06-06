@@ -44,7 +44,7 @@ void __malloc_unlock(struct _reent *r)
 // instead of a NULL from malloc (which RCCHECK could observe). Reserve a margin for
 // the MSP/IRQ stack and fail cleanly with ENOMEM. Called only from malloc, which
 // already holds __malloc_lock, so the static heap_end needs no extra guard.
-extern char end[];      /* heap base   (linker) — array form avoids -Warray-bounds on the */
+extern char end[];      /* heap base   (linker) -- array form avoids -Warray-bounds on the */
 extern char _estack[];  /* top of RAM  (linker)    pointer arithmetic below */
 #define LINO_STACK_RESERVE 0x800u   /* >= _Min_Stack_Size */
 

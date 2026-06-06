@@ -1,10 +1,10 @@
-# STM32Cube Port — Plan 1: Host Test Tier + Odometry Refactor
+# STM32Cube Port -- Plan 1: Host Test Tier + Odometry Refactor
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stand up a host-native (no MCU, no board) unit-test harness for the portable libraries (`kinematics`, `pid`, `odometry`) and refactor `odometry` so its dead-reckoning math is testable without linking the micro-ROS/`nav_msgs` runtime.
 
-**Architecture:** A standalone `test_host/` project compiled with plain `g++` + a vendored single-header test framework (doctest). The portable math sources are compiled directly against a tiny `Arduino.h` shim (provides `PI`, `constrain`, `fabs`). The ROS-coupled `odometry` integrator is extracted into a header-only, dependency-free `OdomIntegrator`; `Odometry` keeps its public API and delegates to it. This is Tier A of the 3-tier "emulation-first" strategy in `docs/STM32CUBE_PORTING_PLAN.md` §6 — the part you can run today with zero hardware.
+**Architecture:** A standalone `test_host/` project compiled with plain `g++` + a vendored single-header test framework (doctest). The portable math sources are compiled directly against a tiny `Arduino.h` shim (provides `PI`, `constrain`, `fabs`). The ROS-coupled `odometry` integrator is extracted into a header-only, dependency-free `OdomIntegrator`; `Odometry` keeps its public API and delegates to it. This is Tier A of the 3-tier "emulation-first" strategy in `docs/STM32CUBE_PORTING_PLAN.md` section 6 -- the part you can run today with zero hardware.
 
 **Tech Stack:** C++17, `g++`, GNU Make, `curl` (one-time fetch of `doctest.h` v2.4.11, MIT), doctest test framework. No PlatformIO, no STM32 toolchain, no board.
 
@@ -14,13 +14,13 @@
 
 The native STM32Cube port (spec: `docs/STM32CUBE_PORTING_PLAN.md`) is split into a sequence of independently-testable plans. Each later plan is written when its prerequisites/artifacts exist (CubeMX project, pin-map, Renode `.repl`):
 
-1. **Plan 1 — Host test tier + odometry refactor** ← *this document* (Tier A; spec Ф1). No toolchain/board needed.
-2. **Plan 2 — STM32 skeleton + libmicroros ABI-smoke** (spec Ф0). Hand-written F446RE HAL/FreeRTOS project + Makefile (**GUI-free, no CubeMX**) + Docker `microros/micro_ros_static_library_builder:jazzy`; link smoke.
-3. **Plan 3 — Renode harness + boot/FreeRTOS/`rclc_support_init` smoke** (spec Ф2).
-4. **Plan 4 — micro-ROS UART transport (DMA/IT compile-time switch) + session round-trip in Renode** (spec Ф3).
-5. **Plan 5 — Encoder (TIM encoder mode) + Motor PWM (TIM) native drivers** (spec Ф4).
-6. **Plan 6 — I2Cdev HAL backend + MPU6050/9250 IMU path** (spec Ф5).
-7. **Plan 7 — Full loop in Renode + dedicated CI workflow** (spec Ф6, CI §7).
+1. **Plan 1 -- Host test tier + odometry refactor** <- *this document* (Tier A; spec F1). No toolchain/board needed.
+2. **Plan 2 -- STM32 skeleton + libmicroros ABI-smoke** (spec F0). Hand-written F446RE HAL/FreeRTOS project + Makefile (**GUI-free, no CubeMX**) + Docker `microros/micro_ros_static_library_builder:jazzy`; link smoke.
+3. **Plan 3 -- Renode harness + boot/FreeRTOS/`rclc_support_init` smoke** (spec F2).
+4. **Plan 4 -- micro-ROS UART transport (DMA/IT compile-time switch) + session round-trip in Renode** (spec F3).
+5. **Plan 5 -- Encoder (TIM encoder mode) + Motor PWM (TIM) native drivers** (spec F4).
+6. **Plan 6 -- I2Cdev HAL backend + MPU6050/9250 IMU path** (spec F5).
+7. **Plan 7 -- Full loop in Renode + dedicated CI workflow** (spec F6, CI section 7).
 
 Plan 1 is intentionally first: it is fully self-contained, needs no STM32 toolchain, and gives a fast regression gate for the math that every later phase depends on.
 
@@ -138,7 +138,7 @@ clean:
 	rm -f run_tests
 ```
 
-> Note: the Makefile already lists `test_kinematics.cpp`, `test_pid.cpp`, `test_odom_integrator.cpp` (created in later tasks). Until those exist the build fails — that is expected and is exactly the "failing test" for each subsequent task. To run ONLY the sanity check in this task, temporarily build with just `test_main.cpp` (next step).
+> Note: the Makefile already lists `test_kinematics.cpp`, `test_pid.cpp`, `test_odom_integrator.cpp` (created in later tasks). Until those exist the build fails -- that is expected and is exactly the "failing test" for each subsequent task. To run ONLY the sanity check in this task, temporarily build with just `test_main.cpp` (next step).
 
 - [ ] **Step 5: Verify the harness compiles and the sanity test passes**
 
@@ -171,7 +171,7 @@ git commit -m "test(host): add host unit-test harness (doctest + Arduino shim)"
 
 ### Task 2: Characterization tests for `Kinematics`
 
-`Kinematics` (`firmware/lib/kinematics/kinematics.{h,cpp}`) already works; these tests pin its behavior so the later port cannot silently change it. With `motor_max_rpm=100`, `max_rpm_ratio=1.0`, `operating_voltage=12`, `power_max_voltage=12`, `wheel_diameter=0.1`, `wheels_y_distance=0.3`: `max_rpm_ = 100`, `wheel_circumference_ = PI*0.1 ≈ 0.3141593`.
+`Kinematics` (`firmware/lib/kinematics/kinematics.{h,cpp}`) already works; these tests pin its behavior so the later port cannot silently change it. With `motor_max_rpm=100`, `max_rpm_ratio=1.0`, `operating_voltage=12`, `power_max_voltage=12`, `wheel_diameter=0.1`, `wheels_y_distance=0.3`: `max_rpm_ = 100`, `wheel_circumference_ = PI*0.1 ~= 0.3141593`.
 
 **Files:**
 - Create: `test_host/test_kinematics.cpp`
@@ -226,7 +226,7 @@ TEST_CASE("Kinematics: getVelocities round-trips a straight-line command") {
 }
 ```
 
-- [ ] **Step 2: Run the tests (characterization — expected PASS)**
+- [ ] **Step 2: Run the tests (characterization -- expected PASS)**
 
 Run:
 ```bash
@@ -247,7 +247,7 @@ git commit -m "test(host): characterize Kinematics RPM/velocity behavior"
 
 ### Task 3: `PID` deterministic-initialization (real TDD)
 
-`PID::compute` accumulates `integral_` and reads `prev_error_`, but the constructor never initializes them (`firmware/lib/pid/pid.cpp:18-25`). On the host a stack-allocated `PID` therefore yields indeterminate output. Fix: initialize them — this makes the module correct and deterministically testable.
+`PID::compute` accumulates `integral_` and reads `prev_error_`, but the constructor never initializes them (`firmware/lib/pid/pid.cpp:18-25`). On the host a stack-allocated `PID` therefore yields indeterminate output. Fix: initialize them -- this makes the module correct and deterministically testable.
 
 **Files:**
 - Create: `test_host/test_pid.cpp`
@@ -293,7 +293,7 @@ cd test_host && g++ -std=c++17 -Ishim -I../firmware/lib/pid \
   test_main.cpp test_pid.cpp ../firmware/lib/pid/pid.cpp \
   -o run_tests && ./run_tests
 ```
-Expected: FAIL — the first two cases fail (or vary run-to-run) because `integral_`/`prev_error_` are uninitialized. Example:
+Expected: FAIL -- the first two cases fail (or vary run-to-run) because `integral_`/`prev_error_` are uninitialized. Example:
 ```
 ERROR: test_pid.cpp(8): CHECK( pid.compute(10.0f, 0.0f) == doctest::Approx(10.0) ) is NOT correct!
   values: CHECK( <garbage> == Approx( 10.0 ) )
@@ -302,7 +302,7 @@ ERROR: test_pid.cpp(8): CHECK( pid.compute(10.0f, 0.0f) == doctest::Approx(10.0)
 
 - [ ] **Step 3: Initialize the members in the constructor**
 
-Modify `firmware/lib/pid/pid.cpp` — replace the constructor (lines 18-25):
+Modify `firmware/lib/pid/pid.cpp` -- replace the constructor (lines 18-25):
 ```cpp
 PID::PID(float min_val, float max_val, float kp, float ki, float kd):
     min_val_(min_val),
@@ -325,7 +325,7 @@ cd test_host && g++ -std=c++17 -Ishim -I../firmware/lib/pid \
   test_main.cpp test_pid.cpp ../firmware/lib/pid/pid.cpp \
   -o run_tests && ./run_tests
 ```
-Expected: `Status: SUCCESS!` — all 4 PID cases pass.
+Expected: `Status: SUCCESS!` -- all 4 PID cases pass.
 
 - [ ] **Step 5: Commit**
 
@@ -395,7 +395,7 @@ Run:
 cd test_host && g++ -std=c++17 -Ishim -I../firmware/lib/odom_integrator \
   test_main.cpp test_odom_integrator.cpp -o run_tests && ./run_tests
 ```
-Expected: FAIL — compile error `fatal error: odom_integrator.h: No such file or directory`.
+Expected: FAIL -- compile error `fatal error: odom_integrator.h: No such file or directory`.
 
 - [ ] **Step 3: Create the header-only integrator**
 
@@ -470,7 +470,7 @@ Run:
 cd test_host && g++ -std=c++17 -Ishim -I../firmware/lib/odom_integrator \
   test_main.cpp test_odom_integrator.cpp -o run_tests && ./run_tests
 ```
-Expected: `Status: SUCCESS!` — all 4 cases pass.
+Expected: `Status: SUCCESS!` -- all 4 cases pass.
 
 - [ ] **Step 5: Commit**
 
@@ -483,7 +483,7 @@ git commit -m "feat(odometry): extract pure header-only OdomIntegrator with host
 
 ### Task 5: Make `Odometry` delegate to `OdomIntegrator`
 
-Rewire `Odometry` to use `OdomIntegrator` for all dead-reckoning math, keeping the public API (`update`, `getData`) byte-identical to callers. This is a mechanical delegation — the firmware (`firmware.ino`) and all existing PlatformIO envs keep compiling unchanged.
+Rewire `Odometry` to use `OdomIntegrator` for all dead-reckoning math, keeping the public API (`update`, `getData`) byte-identical to callers. This is a mechanical delegation -- the firmware (`firmware.ino`) and all existing PlatformIO envs keep compiling unchanged.
 
 **Files:**
 - Modify: `firmware/lib/odometry/odometry.h:38-45`
@@ -503,7 +503,7 @@ Then replace the `private:` section (lines 38-45) with:
         OdomIntegrator integrator_;
 };
 ```
-(This removes the now-unused `euler_to_quat` declaration and the `x_pos_/y_pos_/heading_` members — they live in `OdomIntegrator` now.)
+(This removes the now-unused `euler_to_quat` declaration and the `x_pos_/y_pos_/heading_` members -- they live in `OdomIntegrator` now.)
 
 - [ ] **Step 2: Update the constructor (drop the removed members)**
 
@@ -542,7 +542,7 @@ void Odometry::update(float vel_dt, float linear_vel_x, float linear_vel_y, floa
     odom_msg_.pose.pose.orientation.z = (double) q[3];
     odom_msg_.pose.pose.orientation.w = (double) q[0];
 ```
-(Leave the rest of `update()` — the covariance and twist assignments, lines 57-79 — unchanged.)
+(Leave the rest of `update()` -- the covariance and twist assignments, lines 57-79 -- unchanged.)
 
 - [ ] **Step 4: Remove the old private `euler_to_quat` definition**
 
@@ -563,7 +563,7 @@ Only if PlatformIO + a ROS distro are available (`source /opt/ros/jazzy/setup.ba
 ```bash
 cd firmware && pio run -e esp32
 ```
-Expected: build SUCCESS — confirms the `odometry` refactor did not break existing firmware builds. If the toolchain is unavailable, skip; the change is a pure mechanical delegation with no API change.
+Expected: build SUCCESS -- confirms the `odometry` refactor did not break existing firmware builds. If the toolchain is unavailable, skip; the change is a pure mechanical delegation with no API change.
 
 - [ ] **Step 7: Commit**
 
@@ -582,7 +582,7 @@ host-testable OdomIntegrator. No behavior change."
 Make `make test` build and run every host test together, and record how to run the tier.
 
 **Files:**
-- Modify: `test_host/Makefile` (already lists all TUs — verify it links)
+- Modify: `test_host/Makefile` (already lists all TUs -- verify it links)
 - Create: `test_host/README.md`
 
 - [ ] **Step 1: Run the full suite via the Makefile**
@@ -606,7 +606,7 @@ Create `test_host/README.md`:
 # Host test tier
 
 Native unit tests for the portable libraries (`kinematics`, `pid`, `odom_integrator`).
-Runs on the host with no MCU, board, or ROS install — Tier A of the emulation-first
+Runs on the host with no MCU, board, or ROS install -- Tier A of the emulation-first
 strategy in `docs/STM32CUBE_PORTING_PLAN.md`.
 
 ## Prerequisites
@@ -620,9 +620,9 @@ make test
 Expected: `[doctest] Status: SUCCESS!`, exit code 0.
 
 ## Layout
-- `shim/Arduino.h` — minimal Arduino API (`PI`, `constrain`, `fabs`) for host builds.
-- `doctest.h` — vendored single-header framework (v2.4.11, MIT).
-- `test_*.cpp` — one TU per library under test; `test_main.cpp` owns `main()`.
+- `shim/Arduino.h` -- minimal Arduino API (`PI`, `constrain`, `fabs`) for host builds.
+- `doctest.h` -- vendored single-header framework (v2.4.11, MIT).
+- `test_*.cpp` -- one TU per library under test; `test_main.cpp` owns `main()`.
 ```
 
 - [ ] **Step 3: Commit**
@@ -636,7 +636,7 @@ git commit -m "test(host): wire full make test target and document the tier"
 
 ## Self-Review (performed against the spec)
 
-- **Spec coverage (Tier A / Ф1):** host tests for `kinematics` (Task 2), `pid` (Task 3), and the extracted `odometry` integrator (Tasks 4–5) — matches spec §1 Layer 1, §5.6 (odometry refactor away from `nav_msgs`), §6 Tier A, and §8 Ф1. The other tiers/phases are out of scope for Plan 1 by design (decomposition list above).
-- **Placeholder scan:** no TBD/TODO; every code step shows complete code; every run step shows the exact command and expected output. ✅
-- **Type/name consistency:** `OdomIntegrator` public members `x/y/heading` and `static euler_to_quat(roll,pitch,yaw,q)` are defined in Task 4 and used identically in Task 5; `PID` constructor signature matches `pid.h:23`; `Kinematics` ctor/`getRPM`/`getVelocities`/`getMaxRPM` match `kinematics.h`. ✅
+- **Spec coverage (Tier A / F1):** host tests for `kinematics` (Task 2), `pid` (Task 3), and the extracted `odometry` integrator (Tasks 4-5) -- matches spec section 1 Layer 1, section 5.6 (odometry refactor away from `nav_msgs`), section 6 Tier A, and section 8 F1. The other tiers/phases are out of scope for Plan 1 by design (decomposition list above).
+- **Placeholder scan:** no TBD/TODO; every code step shows complete code; every run step shows the exact command and expected output. [OK]
+- **Type/name consistency:** `OdomIntegrator` public members `x/y/heading` and `static euler_to_quat(roll,pitch,yaw,q)` are defined in Task 4 and used identically in Task 5; `PID` constructor signature matches `pid.h:23`; `Kinematics` ctor/`getRPM`/`getVelocities`/`getMaxRPM` match `kinematics.h`. [OK]
 - **Known limitation:** the optional existing-env regression build (Task 5 Step 6) needs the PlatformIO + ROS toolchain, which may be absent in a no-hardware setup; it is explicitly marked optional and the refactor is API-preserving.

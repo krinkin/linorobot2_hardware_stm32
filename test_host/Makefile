@@ -8,7 +8,7 @@ INCLUDES := -Ishim \
             -I$(LIBDIR)/odom_integrator \
             -I../firmware_stm32/Inc
 
-# Test translation units — all test_*.cpp picked up automatically via wildcard.
+# Test translation units -- all test_*.cpp picked up automatically via wildcard.
 TESTS := $(wildcard test_*.cpp)
 
 # Portable sources under test (header-only libs need no entry here)

@@ -1,6 +1,6 @@
 // The native STM32 control module = the firmware.ino moveBase() equivalent.
 // Owns 4 Encoder + 4 Motor + 4 PID + Kinematics + OdomIntegrator, constructed in
-// control_loop_init() (NOT as global ctors — they must run AFTER HAL_Init so the
+// control_loop_init() (NOT as global ctors -- they must run AFTER HAL_Init so the
 // clocks are up). Single-threaded: control runs on its own FreeRTOS task (see
 // main.c), independent of the micro-ROS agent, so the motors are governed (and the
 // deadman brakes) even when comms are down. The actual math is the host-tested
@@ -36,7 +36,7 @@ volatile float    last_x = 0, last_y = 0, last_heading = 0;   // pose snapshot (
 volatile float    last_vx = 0, last_vy = 0, last_wz = 0;
 
 // Latest IMU sample for the publisher (numeric fields only; header is never written and
-// stays zeroed — uros_task owns the published msg's frame_id). Copied under a critical
+// stays zeroed -- uros_task owns the published msg's frame_id). Copied under a critical
 // section in/out so no torn multi-field read across the two tasks.
 sensor_msgs__msg__Imu g_imu_snap{};
 
@@ -86,7 +86,7 @@ extern "C" void control_loop_init(void)
 
     // IMU + MAG. The real MPU6050 needs the I2C bus; FakeIMU/FakeMAG need nothing.
     // init() runs WHO_AM_I + wake (and ~2 s gyro calibration); blocks this task at startup
-    // only — no /cmd_vel yet, deadman holds the base stopped.
+    // only -- no /cmd_vel yet, deadman holds the base stopped.
 #ifdef USE_FAKE_IMU
     imu = new IMU();
     g_dbg_i2c_init_ok = 1u;   // no bus

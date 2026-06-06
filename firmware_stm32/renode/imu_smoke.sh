@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Renode Ф5 IMU smoke: prove the firmware drives an MPU6050 over the REAL HAL I2C path in
+# Renode F5 IMU smoke: prove the firmware drives an MPU6050 over the REAL HAL I2C path in
 # emulation. A Python MPU6050 mock (Mocks.DummyI2CSlave @ i2c1 0x68, renode/mpu6050_mock.py)
 # answers the firmware's HAL_I2C transactions, so this chain is exercised end-to-end:
 #   HAL_I2C_Mem_Read/Write -> Mpu6050Imu (WHO_AM_I + wake + config + accel/gyro bursts) ->
@@ -15,7 +15,7 @@
 # issue the correct accel(0x3B)/gyro(0x43) 6-byte bursts (visible in the Renode log), but
 # Renode's generic Mocks.DummyI2CSlave returns only ONE byte per master-read, so multi-byte
 # burst DATA cannot be reproduced in emulation -> the SI values are a hardware-only check
-# (like the Ф3 round-trip wire-timing). The pure LSB->SI math is covered by test_imu_math.cpp.
+# (like the F3 round-trip wire-timing). The pure LSB->SI math is covered by test_imu_math.cpp.
 set -u
 ELF="${1:-$(dirname "$0")/../build/firmware_stm32.elf}"
 ELF="$(cd "$(dirname "$ELF")" && pwd)/$(basename "$ELF")"
@@ -65,12 +65,12 @@ echo "imu  : g_dbg_imu_ok=$OK  PC=$PC (HardFault=$FAULT)"
 echo "info : accel_z_milli=$ACC ($ACC_D)  gyro_z_milli=$GYR ($GYR_D)  [burst data: hardware-only, see header]"
 
 FAIL=0
-[ -n "$OK" ] && [ "$OK" != "0x00000000" ] && [ "$OK" != "0x0" ] || { echo "  ✗ IMU init failed (WHO_AM_I/config not seen over real HAL I2C)"; FAIL=1; }
-[ -n "$PC" ] && [ $((PC)) -ne $((FAULT)) ] || { echo "  ✗ CPU in HardFault"; FAIL=1; }   # numeric (case/zero-pad safe)
+[ -n "$OK" ] && [ "$OK" != "0x00000000" ] && [ "$OK" != "0x0" ] || { echo "  [FAIL] IMU init failed (WHO_AM_I/config not seen over real HAL I2C)"; FAIL=1; }
+[ -n "$PC" ] && [ $((PC)) -ne $((FAULT)) ] || { echo "  [FAIL] CPU in HardFault"; FAIL=1; }   # numeric (case/zero-pad safe)
 
 if [ "$FAIL" = 0 ]; then
-  echo "✅ Ф5 PASS: MPU6050 detected + configured over real HAL I2C (WHO_AM_I + PWR_MGMT/CONFIG); no fault"
+  echo "[PASS] F5 PASS: MPU6050 detected + configured over real HAL I2C (WHO_AM_I + PWR_MGMT/CONFIG); no fault"
   exit 0
 else
-  echo "❌ Ф5 FAIL"; echo "$OUT" | grep -iE 'i2c|mpu|error|exception|fault' | head -20; exit 1
+  echo "[FAIL] F5 FAIL"; echo "$OUT" | grep -iE 'i2c|mpu|error|exception|fault' | head -20; exit 1
 fi

@@ -48,7 +48,7 @@ void lino_i2c_clk_enable(I2C_TypeDef* i2c)
 // the math TUs (kinematics/pid) that include Arduino.h but never call delay().
 void delay(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
 
-// Free-running 1 MHz time base on TIM5 (32-bit) for lino_micros(). No GPIO — internal only.
+// Free-running 1 MHz time base on TIM5 (32-bit) for lino_micros(). No GPIO -- internal only.
 void lino_time_init(void)
 {
     __HAL_RCC_TIM5_CLK_ENABLE();

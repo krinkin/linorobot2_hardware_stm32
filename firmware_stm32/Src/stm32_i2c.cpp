@@ -3,11 +3,11 @@
 // Per-transfer timeout. Kept well under the 20 ms control tick so a transient stall on a
 // faulted bus can't blow the loop budget. NOTE: the HAL's leading BUSY-flag wait uses a
 // fixed 25 ms internally, so a truly wedged bus still needs the gating in control_loop +
-// (on real hardware) an SCL bus-recovery sequence — a documented hardware-robustness item.
+// (on real hardware) an SCL bus-recovery sequence -- a documented hardware-robustness item.
 #define I2C_TIMEOUT_MS 8u
 
 // Clock + GPIO are owned here (adapter-owns-GPIO convention), so the HAL MspInit hook
-// is a strong no-op — otherwise HAL_I2C_Init would call the weak default and a second
+// is a strong no-op -- otherwise HAL_I2C_Init would call the weak default and a second
 // config site could silently appear.
 extern "C" void HAL_I2C_MspInit(I2C_HandleTypeDef*) {}
 
