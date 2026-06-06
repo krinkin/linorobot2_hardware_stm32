@@ -51,9 +51,15 @@ echo "GYRO_Z:"
 sysbus ReadDoubleWord $A_GYR
 echo "PC:"
 cpu PC
+quit
 EOF
-OUT=$(cd "$(dirname "$RENODE")" && (sleep 20; echo quit) | timeout 60 \
-        ./"$(basename "$RENODE")" --console --disable-xwt "$RESC" 2>&1)
+# The .resc ends in `quit`, so Renode runs RunFor (synchronous -- it blocks the monitor until the
+# emulated step finishes) THEN prints the read-outs THEN exits. This is race-free: on a slow/loaded
+# runner RunFor can take far longer than real-time, but the read-outs always execute before quit
+# (the old `(sleep 20; echo quit)` killed Renode mid-RunFor in CI, so IMU_OK/PC came back empty).
+# stdin is /dev/null (no interactive prompt); timeout is just a hard safety cap.
+OUT=$(cd "$(dirname "$RENODE")" && timeout 180 \
+        ./"$(basename "$RENODE")" --console --disable-xwt "$RESC" </dev/null 2>&1)
 rm -f "$RESC"; pkill -f 'Renode.exe' 2>/dev/null
 
 after()   { echo "$OUT" | grep -A1 "$1" | tail -n1 | tr -d ' \r'; }

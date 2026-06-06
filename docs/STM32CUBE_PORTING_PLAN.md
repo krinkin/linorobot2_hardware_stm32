@@ -380,5 +380,6 @@ No tool replacement **is needed** -- only these configuration choices are requir
 **Reused as-is:**
 - `firmware/lib/kinematics/*`, `firmware/lib/pid/*`, `firmware/lib/imu/default_imu.h` (the MPU classes)
 
-**Untouched:** the Arduino/ESP32/Pico/Teensy branches of `encoder.h`/`default_motor.h`, the existing
-`platformio.ini` and `parse_platformio.py`.
+**Untouched:** the Arduino/ESP32/Pico/Teensy branches of `encoder.h`/`default_motor.h` and the
+existing `platformio.ini`. (The upstream Arduino multi-distro CI and `parse_platformio.py` were
+later removed -- this repo does not maintain the upstream legacy.)
