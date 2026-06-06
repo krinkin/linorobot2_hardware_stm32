@@ -12,7 +12,7 @@ jobs:
   host-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install g++ + make
         run: sudo apt-get update && sudo apt-get install -y g++ make curl
       - name: Tier A -- host unit tests
@@ -21,7 +21,7 @@ jobs:
   stm32-f0-f2:
     runs-on: ubuntu-latest          # amd64 -- matches pinned image sub-digest 392246e5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive      # CMSIS/HAL/FreeRTOS + micro_ros utils @ pinned commits
       - name: Install host ARM toolchain + Renode-smoke runtime deps
@@ -57,7 +57,7 @@ jobs:
     if: github.event_name == 'push'
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - name: Install ARM toolchain + Renode-smoke runtime deps
