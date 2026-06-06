@@ -208,7 +208,8 @@ sees `firmware/platformio.ini` envs.
 ```
 Makefile                      # the entry point (this guide's targets)
 test_host/                    # Tier A: host unit tests (doctest)
-firmware/lib/{kinematics,pid,odometry,odom_integrator}/   # portable math (shared)
+firmware/lib/{kinematics,pid,odom_integrator}/   # platform-agnostic libs (shared)
+firmware/lib/imu/{imu,mag}_interface.h           # IMU/MAG abstract interfaces
 firmware_stm32/               # Tier B/C: the GUI-free native firmware
   Makefile                    #   hand-written build (+ print_cflags for the Docker builder)
   STM32F446RETX_FLASH.ld      #   linker script

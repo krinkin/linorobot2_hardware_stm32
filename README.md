@@ -11,12 +11,14 @@ a hand-written `Makefile`).
 First board: **NUCLEO-F446RE** (Cortex-M4F). Designed to be **universal across any FPU STM32**
 (config-driven TIM/I2C/pin descriptor tables -- a second board is a new config header, zero driver edits).
 
-> The original Arduino/PlatformIO firmware (ESP32 / Pico / Teensy) is unchanged and documented in
-> **[`README.upstream.md`](README.upstream.md)**; its sources live under [`firmware/`](firmware/).
-> The native port lives on this repo's **default branch `stm32`** (repo:
+> This repo is the native STM32 port only. The upstream Arduino/PlatformIO firmware (ESP32 / Pico /
+> Teensy) has been removed; only the platform-agnostic libraries it shared with this port are kept,
+> under [`firmware/lib/`](firmware/lib/) (`kinematics`, `pid`, `odom_integrator`, and the IMU/MAG
+> interfaces). The native port lives on this repo's **default branch `stm32`** (repo:
 > `krinkin/linorobot2_hardware_stm32`). Heads-up: "Jazzy" elsewhere -- the `micro-ros-agent:jazzy`
 > image, `/opt/ros/jazzy`, the `micro_ros_stm32cubemx_utils` submodule branch -- is the ROS 2
-> **distro** the firmware targets, *not* a git branch.
+> **distro** the firmware targets, *not* a git branch. For the original multi-board Arduino firmware,
+> see the upstream [linorobot/linorobot2_hardware](https://github.com/linorobot/linorobot2_hardware).
 
 ## Status
 
@@ -105,7 +107,8 @@ CI: `.github/workflows/stm32-f446re.yml` runs Tiers A/B + F2/F4/F5 on every push
 Makefile                       # the entry point (targets above)
 docker/Dockerfile              # self-contained dev image (toolchain + Renode + socat) for `make docker-*`
 test_host/                     # Tier A host doctest tier (see test_host/README.md)
-firmware/lib/{kinematics,pid,odom_integrator,imu,motor}/   # portable code reused by both ports
+firmware/lib/{kinematics,pid,odom_integrator}/  # platform-agnostic libs reused by the port
+firmware/lib/imu/{imu,mag}_interface.h          # IMU/MAG abstract interfaces (port has native drivers)
 firmware_stm32/                # the native HAL port
   Src/  Inc/  config/          # C main + C++ drivers/control; board descriptor tables
   vendor/                      # pinned submodules: cmsis_device_f4, cmsis_core, HAL, FreeRTOS-Kernel
