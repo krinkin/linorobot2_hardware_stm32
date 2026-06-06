@@ -1,14 +1,13 @@
-// Native STM32 magnetometer drivers (replaces the Arduino-bound default_mag.h). The native
-// port currently ships only the verbatim FakeMAG fallback; real magnetometers (HMC5883L /
-// AK8963 / QMC5883L) are added later behind the same USE_*_MAG selector (mirror of mag.h).
+// Native STM32 magnetometer drivers. The port currently ships only the FakeMAG fallback;
+// real magnetometers (HMC5883L / AK8963 / QMC5883L) can be added later behind the same
+// USE_*_MAG selector.
 #ifndef STM32_MAG_H
 #define STM32_MAG_H
 
-#include "Arduino.h"
 #include <micro_ros_utilities/string_utilities.h>
 #include "mag_interface.h"
 
-// Verbatim from firmware/lib/imu/default_mag.h -- the no-MAG fallback.
+// The no-MAG fallback (same shape as the upstream linorobot2 FakeMAG).
 class FakeMAG : public MAGInterface
 {
 public:

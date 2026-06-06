@@ -1,7 +1,7 @@
-// Verbatim copy of firmware/lib/motor/motor_interface.h (Apache-2.0, (c) 2021
-// Juan Miguel Jimeno). Copied into the STM32 port so the build does NOT
-// transitively pull in the Arduino-bound default_motor.h. The spin()/invert/sign
-// dispatch is reused unchanged so motor behavior matches the Arduino firmware.
+// MotorInterface for the STM32 port (Apache-2.0, (c) 2021 Juan Miguel Jimeno).
+// A standalone copy of the upstream linorobot2 motor interface, so the build does NOT
+// transitively pull in the Arduino-bound motor driver. The spin()/invert/sign dispatch
+// matches the upstream behavior.
 #ifndef MOTOR_INTERFACE
 #define MOTOR_INTERFACE
 

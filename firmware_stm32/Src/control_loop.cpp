@@ -1,4 +1,4 @@
-// The native STM32 control module = the firmware.ino moveBase() equivalent.
+// The native STM32 control module = the per-tick moveBase() of the upstream Arduino base node.
 // Owns 4 Encoder + 4 Motor + 4 PID + Kinematics + OdomIntegrator, constructed in
 // control_loop_init() (NOT as global ctors -- they must run AFTER HAL_Init so the
 // clocks are up). Single-threaded: control runs on its own FreeRTOS task (see
@@ -43,7 +43,8 @@ sensor_msgs__msg__Imu g_imu_snap{};
 const uint32_t CMD_TIMEOUT_MS = 200;   // deadman
 }
 
-// Renode-observable debug symbols (read by name in renode/control_smoke.sh).
+// Renode-observable debug symbols (read by name in the renode/*.sh smoke scripts:
+// control_smoke.sh reads the control/odom symbols, imu_smoke.sh the IMU ones).
 // Global linkage so they appear in the ELF symbol table.
 extern "C" {
 volatile float    g_dbg_rpm[4]       = {0, 0, 0, 0};
