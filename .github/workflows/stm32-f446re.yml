@@ -48,14 +48,13 @@ jobs:
         run: make imu
 
   # F6 full base-node topic round-trip (needs Docker for micro_ros_agent + --network host).
-  # Push-gated + continue-on-error until the docker round-trip is proven stable in CI.
-  # TODO(remove by 2026-09): once stable across several pushes, drop continue-on-error and
-  # run on PRs (or a firmware_stm32/** path gate) so F6 gates merges.
+  # Hard gate now (F6 is green in CI): a real failure here fails the run / reddens the badge.
+  # Still push-only -- it is the heaviest tier and needs Docker; enable it on pull_request to
+  # also gate merges once it has proven stable across more pushes.
   stm32-topics:
     runs-on: ubuntu-latest
     needs: stm32-f0-f2
     if: github.event_name == 'push'
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
         with:
