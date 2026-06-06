@@ -194,14 +194,16 @@ These bite at *run* time (the firmware links and "boots") and were the Plan-4 bl
 `test_host/`, `firmware/lib/`, `firmware_stm32/`, the root `Makefile`, or the workflow itself
 (the F6 job additionally is gated to push events only). Three jobs:
 - **host-tests** -> `make test-host` (Tier A).
-- **stm32-f0-f2** -> `make libmicroros` + `make build-fw` (Tier B) -> `renode-test-action` runs
-  `boot_smoke.robot` (F2, Renode 1.16.1) -> installs Renode-portable + socat -> `make control`
-  (F4) -> `make imu` (F5).
+- **stm32-f0-f2** -> `make libmicroros` + `make build-fw` (Tier B) -> installs Renode 1.16.1
+  portable + socat/iproute2/gawk/xxd -> `make renode` (F2 boot smoke, ping TX) -> `make control`
+  (F4) -> `make imu` (F5). All three Renode tiers use the portable build (no `gtk-sharp2`/apt
+  Renode), exactly like the local Makefile and `docker/Dockerfile`.
 - **stm32-topics** (`needs: stm32-f0-f2`, push-gated, `continue-on-error` until proven stable)
   -> `make libmicroros` + `make build-fw` -> `make topics` (F6, full base-node round-trip via the
   Docker micro_ros_agent). This is the only Docker round-trip that runs in CI (F3 is local-only).
-This is separate from the existing PlatformIO CI (`.github/parse_platformio.py`), which only
-sees `firmware/platformio.ini` envs.
+This is the only CI workflow in the repo; the upstream Arduino/PlatformIO multi-distro CI
+(`humble/jazzy/rolling-firmware-build.yml`, the reusable workflow, and `parse_platformio.py`) was
+removed -- this repo does not maintain the upstream legacy.
 
 ## 9. Repo map (what builds what)
 
