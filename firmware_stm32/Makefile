@@ -29,7 +29,7 @@ C_INCLUDES = -IInc -Iconfig -I$(DEV)/Include -I$(CORE) -I$(HAL)/Inc \
              -I$(RTOS)/include -I$(RTOS)/portable/GCC/ARM_CM4F \
              -I$(UROS)/microros_include \
              -I$(PORTLIB)/kinematics -I$(PORTLIB)/pid \
-             -I$(PORTLIB)/odom_integrator -I$(PORTLIB)/motor -I$(PORTLIB)/imu
+             -I$(PORTLIB)/odom_integrator -I$(PORTLIB)/imu
 
 C_SOURCES = \
   Src/main.c Src/microros_glue.c Src/microros_atomic64.c Src/sys_freertos.c \
